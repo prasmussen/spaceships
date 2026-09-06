@@ -19,6 +19,7 @@ export class Controls {
     const title=document.createElement('h2');title.id='controls-title';title.textContent='Controls';
     const intro=document.createElement('p');intro.textContent='Select an action, then press a key. Escape cancels. Each action needs a different key. Up also thrusts; Left and Right also rotate, unless assigned to another action. These controls apply to your ship in practice and online matches.';
     this.dialog.append(title,intro);
+    const help=document.createElement('section');help.id='controls-help';this.dialog.append(help);
     const group=document.createElement('fieldset'),legend=document.createElement('legend');legend.textContent='Your ship';group.append(legend);
     for(let a=0;a<5;a++)group.append(this.binding(a,actions[a],actions[a]));
     this.dialog.append(group);
@@ -42,7 +43,7 @@ export class Controls {
       this.codes[this.pending]=e.code;this.pending=-1;this.save();clear();
     });
     document.body.append(this.dialog);
-    document.querySelector('#controls-open')!.addEventListener('click',()=>{clear();this.output.textContent='';this.dialog.showModal();});
+    for(const button of document.querySelectorAll('#controls-open, #home-controls'))button.addEventListener('click',()=>{clear();this.output.textContent='';this.dialog.showModal();});
     this.refresh();
   }
   get open(){return this.dialog.open;}
@@ -59,7 +60,7 @@ export class Controls {
   private save(){this.output.textContent='Controls saved.';try{localStorage.setItem('cavern-controls-v2',JSON.stringify(this.codes));}catch{this.output.textContent='Controls applied for this visit; browser storage is unavailable.';}this.refresh();}
   private refresh(){
     this.buttons.forEach((button,i)=>{button.textContent=this.pending===i?'Press a key…':label(this.codes[i]);button.setAttribute('aria-pressed',String(this.pending===i));});
-    const footer=document.querySelector('footer')!;
+    const footer=document.querySelector('#controls-help')!;
     footer.replaceChildren();
     const line=document.createElement('span');line.textContent=actions.map((action,i)=>{
       const alias=arrows[i],keys=alias&&!this.codes.includes(alias)?`${label(this.codes[i])} / ${label(alias)}`:label(this.codes[i]);

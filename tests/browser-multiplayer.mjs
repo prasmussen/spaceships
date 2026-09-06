@@ -52,7 +52,7 @@ export async function checkOnlineGroups(browser,base,forceRelay=false){
       const path=`artifacts/online-${players}-player-replay.json`;await writeFile(path,JSON.stringify(recording.recording));
       await promisify(execFile)('go',['run','./cmd/replaycheck',path]);
       await pages[0].screenshot({path:`artifacts/online-${players}-players.png`});
-      await pages.at(-1).getByRole('button',{name:'Online duel',exact:true}).click();await pages.at(-1).getByRole('button',{name:'Practice offline',exact:true}).click();
+      await pages.at(-1).getByRole('button',{name:'Open game menu'}).click();await pages.at(-1).getByRole('button',{name:'Exit to lobby',exact:true}).click();await pages.at(-1).getByRole('button',{name:'Practice offline',exact:true}).click();
       await Promise.all(pages.slice(0,-1).map(page=>page.waitForFunction(()=>/Left match|disconnected/i.test(document.querySelector('#connection-status').textContent))));
       assert.deepEqual(errors,[]);evidence.push({players,connectionsPerPeer:players-1,forcedRelay:forceRelay,controls:true,pauseResume:true,commonHashes:common.length,replayValidatedInGo:true,leave:true});
       console.log(`${players}-player online mesh passed: controls, hashes, pause/resume, Go replay and leave.`);

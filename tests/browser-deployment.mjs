@@ -41,7 +41,7 @@ export async function checkDeployment(browser){
     await Promise.all(pages.map(page=>page.getByRole('button',{name:'Quick play',exact:true}).click()));
     await Promise.all(pages.map(page=>page.waitForFunction(()=>document.querySelector('#connection-status').textContent.includes('Online ·'),{},{timeout:20000})));
     await pages[0].keyboard.down('w');await pages[0].waitForTimeout(300);await pages[0].keyboard.up('w');assert.match(await pages[0].locator('#status').textContent(),/IN FLIGHT/);
-    await pages[0].getByRole('button',{name:'Online duel',exact:true}).click();await pages[0].getByRole('button',{name:'Practice offline',exact:true}).click();
+    await pages[0].getByRole('button',{name:'Open game menu'}).click();await pages[0].getByRole('button',{name:'Exit to lobby',exact:true}).click();await pages[0].getByRole('button',{name:'Practice offline',exact:true}).click();
     await pages[1].waitForFunction(()=>/Left match|disconnected/i.test(document.querySelector('#connection-status').textContent));
     await writeFile('artifacts/https-browser.json',JSON.stringify({https:true,secureCookies:true,wssQueue:true,webRTC:true,originRejection:true,wasm:manifest.wasm,leave:true},null,2)+'\n');
     console.log('Container HTTPS/WSS deployment passed: secure cookies, queue, WebRTC controls, origin rejection and leave.');

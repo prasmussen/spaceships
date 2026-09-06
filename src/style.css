@@ -25,7 +25,7 @@ nav{flex-wrap:wrap}#controls-panel{background:#0e1d27;color:#cee7e5;border:1px s
 #local-menu button{text-align:left}
 .online-home #view{filter:blur(3px) brightness(.4)}
 .online-home #overlay{z-index:12;padding:24px;justify-content:flex-end;align-items:center}
-.online-home #overlay>header,.online-home #status,.online-home #result,.online-home footer,.online-home #connection-status,.online-home #online-open,.online-home #local-menu{display:none}
+.online-home #overlay>header,.online-home #status,.online-home #result,.online-home footer,.online-home #connection-status,.online-home #online-open{display:none}
 .online-home nav{margin:0}
 .online-home #controls-open{background:transparent;border-color:transparent;color:#a6bebb}
 .online-home #online-panel{left:50%;right:auto;top:50%;transform:translate(-50%,-50%);width:480px;max-height:calc(100dvh - 120px);padding:40px;background:linear-gradient(150deg,#152d36f5,#0c1a25fa);border-color:#42616b;border-radius:16px;box-shadow:0 24px 100px #0009}
@@ -37,10 +37,29 @@ nav{flex-wrap:wrap}#controls-panel{background:#0e1d27;color:#cee7e5;border:1px s
 .online-home .online-actions{display:grid;gap:10px;margin:24px 0 0}
 .online-home .online-actions button{padding:15px;font-size:15px}
 .online-home #queue-join,.online-home #queue-cancel{background:#8ce6cd;border-color:#8ce6cd;color:#0c2724;font-weight:600}
-.online-home #online-leave{background:transparent;border-color:#344b54;color:#b6cccd}
+.online-home #local-menu{border:1px solid #344b54;border-radius:5px;color:#b6cccd}
+.online-home #local-menu summary{padding:15px;font-size:15px;text-align:center}
 .online-home #online-status{margin-top:16px;text-align:center;min-height:20px}
 
 
 @media(max-width:600px){.online-home #online-panel{padding:26px;max-width:calc(100vw - 32px)}.online-home .home-intro h1{font-size:40px}.online-home #overlay{padding:14px}}
 
 select{font:inherit;font-size:12px;color:#d5e8e8;background:#101e28;border:1px solid #42616b;border-radius:5px;padding:9px 12px}select:focus-visible{outline:2px solid #fafafa;outline-offset:3px}#online-panel>label{display:block;margin:22px 0 8px}#local-menu label{display:block;margin:12px 0 6px}
+
+/* Keep the flight view for telemetry; navigation lives in the game menu. */
+#overlay{padding:28px}
+#status{margin:0;padding-right:50px;max-width:560px;text-shadow:0 1px 6px #000}
+#menu-open{position:absolute;top:24px;right:24px;pointer-events:auto;display:grid;gap:5px;padding:13px;background:#0e1d27d9;border-color:#42616b;width:44px;height:44px}
+#menu-open span{display:block;width:16px;height:1px;background:#cee7e5}
+#home-controls{display:none}
+.online-home #menu-open{display:none}
+.online-home #home-controls{display:block;pointer-events:auto;background:transparent;border-color:transparent;color:#a6bebb}
+#game-menu{width:360px;max-width:calc(100vw - 32px);max-height:calc(100dvh - 48px);overflow:auto;padding:24px;border:1px solid #42616b;border-radius:14px;background:#0e1d27;color:#cee7e5;box-shadow:0 24px 100px #0009}
+#game-menu::backdrop{background:#03090fc4;backdrop-filter:blur(5px)}
+#game-menu nav{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+#game-menu nav>button,#menu-resume{width:100%;text-align:left;padding:13px 15px}
+#menu-resume{margin-top:24px;background:#244e50;border-color:#78d8bd;color:#cee7e5}
+#online-panel #local-menu>div{position:static;width:100%;border:0;border-top:1px solid #344b54;border-radius:0;background:transparent}
+#game-menu #online-open{order:3;border-color:#77504e;color:#e4b7ad}
+#controls-help{font-size:12px;color:#a9c2c1;line-height:1.7}
+@media(max-width:600px){#overlay{padding:20px}#status{gap:14px;max-width:390px}#status strong{font-size:19px}#menu-open{top:16px;right:16px}}

@@ -59,7 +59,7 @@ export async function checkFullMatch(browser,base,relay){
       for(const page of pages)await page.locator('#online-ready').click();
       await Promise.all(pages.map(page=>page.waitForFunction(()=>document.querySelector('#result').hidden&&document.querySelector('#connection-status').textContent.includes('Online ·'),{},{timeout:20000})));
       for(const page of pages)assert.equal(await page.locator('#status strong').nth(5).textContent(),'0');
-      await pages[0].getByRole('button',{name:'Online duel',exact:true}).click();await pages[0].getByRole('button',{name:'Practice offline',exact:true}).click();
+      await pages[0].getByRole('button',{name:'Open game menu'}).click();await pages[0].getByRole('button',{name:'Exit to lobby',exact:true}).click();await pages[0].getByRole('button',{name:'Practice offline',exact:true}).click();
       await Promise.all(pages.slice(1).map(page=>page.waitForFunction(()=>/Left match|disconnected/i.test(document.querySelector('#connection-status').textContent))));
       evidence.push({players,normalInputs:true,firstToFive:true,goReplay:true,rematch:true,leave:true});
       await writeFile(`artifacts/full-${relay?'relay':'direct'}-match.json`,JSON.stringify(evidence,null,2));

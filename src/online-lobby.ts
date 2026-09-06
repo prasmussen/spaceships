@@ -36,7 +36,7 @@ export class OnlineLobby {
   private pendingSearch=false;
   constructor(callbacks:OnlineCallbacks){
     this.callbacks=callbacks;
-    document.querySelector('#online-open')!.addEventListener('click',()=>{this.panel.hidden=false;this.callbacks.browse();if(!this.ws||this.ws.readyState>1)void this.connect();});
+    document.querySelector('#online-open')!.addEventListener('click',()=>{this.leave();this.panel.hidden=false;this.callbacks.browse();if(!this.ws||this.ws.readyState>1)void this.connect();});
     document.querySelector('#online-close')!.addEventListener('click',()=>{if(this.peer)this.panel.hidden=true;else this.leave();});
     document.querySelector('#queue-join')!.addEventListener('click',()=>{
       this.wantsRoom=true;this.pendingSearch=true;this.searching=true;this.updateActions();
@@ -44,7 +44,6 @@ export class OnlineLobby {
     });
     document.querySelector('#queue-cancel')!.addEventListener('click',()=>{this.wantsRoom=false;this.pendingSearch=false;this.searching=false;if(this.available)this.send({type:'leave'});this.updateActions();});
     document.querySelector('#online-ready')!.addEventListener('click',()=>this.rematch());
-    document.querySelector('#online-leave')!.addEventListener('click',()=>this.leave());
     setInterval(()=>this.metrics(),2000);
     this.enabled(false);
   }

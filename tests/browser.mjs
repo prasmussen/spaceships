@@ -67,7 +67,7 @@ try {
   await page.getByRole('button',{name:'Practice offline',exact:true}).click();
   assert.equal(await page.locator('#online-panel').isVisible(),false);
   assert.equal(await page.locator('#status').isVisible(),true);
-  await page.locator('#local-menu summary').click();
+  await page.getByRole('button',{name:'Open game menu'}).click();
   await page.getByRole('button',{name:'Controls',exact:true}).click();
   assert.equal(await page.getByLabel('Sound effects',{exact:true}).isChecked(),true);
   assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('cavern-controls-v2'))),['KeyW','KeyA','KeyD','Space','ShiftLeft']);
@@ -81,29 +81,32 @@ try {
   await page.getByRole('button',{name:'Done',exact:true}).click();
   await page.reload();
   await page.getByRole('button',{name:'Practice offline',exact:true}).click();
-  await page.locator('#local-menu summary').click();
   await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('ON PAD'));
   await page.keyboard.down('w');await page.waitForTimeout(100);await page.keyboard.up('w');
   assert.match(await page.locator('#status').textContent(),/ON PAD/);
   await page.keyboard.down('i');await page.waitForTimeout(250);await page.keyboard.up('i');
   assert.match(await page.locator('#status').textContent(),/IN FLIGHT/);
   assert.ok(await page.evaluate(()=>window.testThrustSounds)>0,'thrust starts an engine sound by default');
+  await page.getByRole('button',{name:'Open game menu'}).click();
   await page.getByRole('button',{name:'Controls',exact:true}).click();
   await page.getByRole('button',{name:'Restore default controls',exact:true}).click();
   await page.getByLabel('Sound effects',{exact:true}).check();
   await page.getByRole('button',{name:'Done',exact:true}).click();
+  await page.locator('#local-menu summary').click();
   await page.getByRole('button',{name:'Flight lab',exact:true}).click();
   await page.waitForFunction(()=>window.testPracticeFrame?.state[2]===2&&window.testPracticeFrame.state[40]===0);
   for(const players of [3,4,2]){
+    await page.getByRole('button',{name:'Open game menu'}).click();
     await page.locator('#local-menu summary').click();
     await page.getByLabel('Practice players',{exact:true}).selectOption(String(players));
+    await page.getByRole('button',{name:'Resume game'}).click();
     await page.waitForFunction(count=>window.testPracticeFrame?.state[5]===count,players);
     await page.waitForFunction(count=>Array.from({length:count-1},(_,id)=>window.testPracticeFrame.state[40+id*16]).every(grounded=>grounded===0),players);
     assert.deepEqual(await page.evaluate(count=>Array.from({length:count},(_,id)=>window.testPracticeFrame.state[23+id*16]),players),Array(players).fill(3));
-    await page.locator('#local-menu summary').click();
     if(players===4)await page.screenshot({path:'artifacts/four-player-practice.png'});
   }
-  assert.match(await page.locator('#status').textContent(),/COMPUTER/);
+  assert.doesNotMatch(await page.locator('#status').textContent(),/COMPUTER|FIRST TO/);
+  assert.equal(await page.locator('footer').count(),0);
   await page.waitForTimeout(100);
   await page.keyboard.down('w');
   await page.keyboard.down('d');
@@ -119,6 +122,7 @@ try {
   await page.keyboard.press('r');
   await page.waitForTimeout(100);
   assert.ok(await page.evaluate(()=>window.testPracticeFrame.state[0])>tickBeforeR,'R does not restart the simulation');
+  await page.getByRole('button',{name:'Open game menu'}).click();
   await page.locator('#local-menu summary').click();
   await page.getByRole('button',{name:'Landing course',exact:true}).click();
   await page.waitForTimeout(150);
