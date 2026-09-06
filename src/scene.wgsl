@@ -1,5 +1,5 @@
 struct View { size: vec2f, camera: vec2f, mode:f32, time:f32, motion:f32, padding:f32 };
-struct Ship { position:vec2f, angle:f32, alive:f32, thrust:f32, protection:f32, padding:vec2f };
+struct Ship { position:vec2f, angle:f32, alive:f32, thrust:f32, protection:f32, shield:f32, impact:f32 };
 @group(0) @binding(0) var<uniform> view: View;
 @group(0) @binding(1) var<storage,read> terrain: array<vec4f>;
 @group(0) @binding(2) var<storage,read> ships: array<Ship>;
@@ -59,6 +59,11 @@ fn exhaust(p:vec2f,power:f32,player:u32)->vec3f {
     let edge=min(line(p,vec2f(0,-17),vec2f(-12,12)),min(line(p,vec2f(-12,12),vec2f(0,7)),min(line(p,vec2f(0,7),vec2f(12,12)),line(p,vec2f(12,12),vec2f(0,-17)))));
     color+=tint(player)*exp(-edge*.8);
     color+=exhaust(p,ship.thrust,player);
+    if(ship.shield>.5){
+      let radius=length(local);
+      color+=vec3f(.25,.7,1.)*(.85+ship.impact*1.8)*exp(-abs(radius-23.)*.85);
+      color+=vec3f(.1,.35,.55)*(.12+ship.impact*.3)*(1.-smoothstep(20.,24.,radius));
+    }
     if(ship.protection>.5){color+=tint(player)*.45*exp(-abs(length(local)-24.));}
   }
   return vec4f(color,1.);

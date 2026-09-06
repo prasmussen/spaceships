@@ -13,12 +13,12 @@
   "movementDragDivisor": 512,
   "maxPosition": 1073741824,
   "fuelCapacity": 6000,
-  "hull": 3,
+  "hull": 600,
   "landingMaxVx": 157286,
   "landingMaxVy": 275251,
   "landingMaxAngle": 341,
   "landingMaxSpin": 24,
-  "refuelPerSubstep": 3,
+  "refuelPerSubstep": 13,
   "muzzleSpeed": 786432,
   "projectileLifetime": 120,
   "weaponCooldown": 8,
@@ -27,5 +27,10 @@
   "boostExhaustForcePerSubstep": 21600,
   "boostDuration": 18,
   "boostCooldown": 300,
-  "boostFuelCost": 120
+  "boostFuelCost": 120,
+  "shieldDuration": 90,
+  "shieldCooldown": 300,
+  "shieldEnergyCost": 1500,
+  "repairDelay": 60,
+  "projectileDamage": 200
 }

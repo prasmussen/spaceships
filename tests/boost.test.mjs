@@ -20,12 +20,12 @@ test('insufficient fuel and dead ships cannot boost',async()=>{
 test('boost pushes ships inside the exhaust cone much harder for either player and all orientations',async()=>{
  for(const player of [0,1])for(const [angle,dx,dy] of [[0,0,44],[1024,-44,0],[2048,0,-44],[3072,44,0]]){
   const deltas=[];
-  for(const buttons of [0,1,16]){const game=await create(),a=16+16*player,b=16+16*(1-player);game.st[a]=0;game.st[a+1]=0;game.st[a+4]=angle;game.st[b]=dx*Q;game.st[b+1]=dy*Q;step(game,buttons,1,player);deltas.push(game.st[b+2]*dx+game.st[b+3]*dy);assert.equal(game.st[b+7],3);}
+  for(const buttons of [0,1,16]){const game=await create(),a=16+16*player,b=16+16*(1-player);game.st[a]=0;game.st[a+1]=0;game.st[a+4]=angle;game.st[b]=dx*Q;game.st[b+1]=dy*Q;step(game,buttons,1,player);deltas.push(game.st[b+2]*dx+game.st[b+3]*dy);assert.equal(game.st[b+7],600);}
   assert.ok(deltas[2]-deltas[0]>3.5*(deltas[1]-deltas[0]));
  }
 });
 test('boost excludes ships outside the cone and behind solid terrain',async()=>{
- for(const [map,x,y,dx,dy,angle] of [[0,1000,1000,0,-44,0],[0,1000,1000,44,44,0],[0,1000,1000,0,100,0],[32768,1430,730,50,-50,2560]]){
+ for(const [map,x,y,dx,dy,angle] of [[0,1000,1000,0,-44,0],[0,1000,1000,44,44,0],[0,1000,1000,0,100,0],[32768,1068,555,50,-50,2560]]){
   const velocities=[];for(const buttons of [0,16]){const game=await create(map);for(const o of [16,32]){game.st[o+8]=0;game.st[o+12]=0;}game.st[16]=x*Q;game.st[17]=y*Q;game.st[20]=angle;game.st[32]=(x+dx)*Q;game.st[33]=(y+dy)*Q;step(game,buttons);velocities.push([game.st[34],game.st[35]]);}assert.deepEqual(...velocities);
  }
 });

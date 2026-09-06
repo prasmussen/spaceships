@@ -11,7 +11,7 @@ export function encodeInput(packet:InputPacket):ArrayBuffer {
   new Uint8Array(buffer,20).set(packet.frames);return buffer;
 }
 function validateFields(p:InputPacket){
-  if(!Number.isInteger(p.epoch)||p.epoch<0||p.epoch>0xffffffff||![0,1,2,3].includes(p.sender)||!Number.isInteger(p.start)||p.start<0||p.start>2147483400||!Number.isInteger(p.ack)||p.ack<1||p.ack>2147483527||!Array.isArray(p.frames)||p.frames.length<1||p.frames.length>8||p.frames.some(b=>!Number.isInteger(b)||b<0||b>31))throw new ProtocolError('Malformed input packet');
+  if(!Number.isInteger(p.epoch)||p.epoch<0||p.epoch>0xffffffff||![0,1,2,3].includes(p.sender)||!Number.isInteger(p.start)||p.start<0||p.start>2147483400||!Number.isInteger(p.ack)||p.ack<1||p.ack>2147483527||!Array.isArray(p.frames)||p.frames.length<1||p.frames.length>8||p.frames.some(b=>!Number.isInteger(b)||b<0||b>63))throw new ProtocolError('Malformed input packet');
 }
 export function decodeInput(buffer:ArrayBuffer,epoch:number,remote:number,tick:number):InputPacket {
   if(!(buffer instanceof ArrayBuffer)||buffer.byteLength<21||buffer.byteLength>28)throw new ProtocolError('Invalid gameplay packet size');
@@ -50,7 +50,7 @@ export function decodeControl(raw:string):Control {
     case 'meshReady':case 'ready':case 'started':valid=true;break;
     case 'start':valid=typeof m.delayMs==='number'&&Number.isFinite(m.delayMs)&&m.delayMs>=100&&m.delayMs<=10000&&typeof m.oneWayMs==='number'&&Number.isFinite(m.oneWayMs)&&m.oneWayMs>=0&&m.oneWayMs<=m.delayMs;break;
     case 'ping':case 'pong':valid=integer(m.id)&&typeof m.sent==='number'&&Number.isFinite(m.sent)&&m.sent>=0&&m.sent<1e15;break;
-    case 'repair':valid=integer(m.start)&&integer(m.ack,1)&&Array.isArray(m.frames)&&m.frames.length>0&&m.frames.length<=120&&m.frames.every(b=>integer(b,0,31));break;
+    case 'repair':valid=integer(m.start)&&integer(m.ack,1)&&Array.isArray(m.frames)&&m.frames.length>0&&m.frames.length<=120&&m.frames.every(b=>integer(b,0,63));break;
     case 'need':valid=integer(m.from)&&integer(m.to)&&(m.to as number)>=(m.from as number)&&(m.to as number)-(m.from as number)<120;break;
     case 'hash':valid=integer(m.tick)&&hash(m.hash)&&integer(m.revision,0,1);break;
     case 'recovered':valid=integer(m.tick)&&hash(m.hash);break;

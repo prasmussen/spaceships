@@ -51,7 +51,7 @@ try {
     };
   });
   await page.goto(base);
-  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('FUEL'));
+  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('ENERGY'));
   await page.waitForTimeout(500);
   assert.equal(await page.locator('body').evaluate(e=>e.classList.contains('unavailable')),false);
   assert.equal(await page.locator('#online-options, .home-hint, .online-description').count(),0);
@@ -102,7 +102,7 @@ try {
     await page.getByRole('button',{name:'Resume game'}).click();
     await page.waitForFunction(count=>window.testPracticeFrame?.state[5]===count,players);
     await page.waitForFunction(count=>Array.from({length:count-1},(_,id)=>window.testPracticeFrame.state[40+id*16]).every(grounded=>grounded===0),players);
-    assert.deepEqual(await page.evaluate(count=>Array.from({length:count},(_,id)=>window.testPracticeFrame.state[23+id*16]),players),Array(players).fill(3));
+    assert.deepEqual(await page.evaluate(count=>Array.from({length:count},(_,id)=>window.testPracticeFrame.state[23+id*16]),players),Array(players).fill(600));
     if(players===4)await page.screenshot({path:'artifacts/four-player-practice.png'});
   }
   assert.doesNotMatch(await page.locator('#status').textContent(),/COMPUTER|FIRST TO/);
@@ -115,7 +115,7 @@ try {
   await page.keyboard.up('w');
   const spin=await page.locator('#status strong').nth(3).textContent();
   assert.ok(Number(spin)>0,'rotation produces angular momentum');
-  const fuel=await page.locator('#status strong').nth(0).textContent();
+  const fuel=await page.locator('#status span').filter({hasText:'ENERGY'}).locator('strong').textContent();
   assert.ok(parseInt(fuel)<100,'thrust consumes fuel');
   await page.screenshot({path:'artifacts/flight.png'});
   const tickBeforeR=await page.evaluate(()=>window.testPracticeFrame.state[0]);

@@ -6,7 +6,7 @@ export async function matchInputs(players=2,seed=0){
   const engine=await Engine.create(await readFile('public/simulation.wasm'),32768,seed,players);
   const inputs=[];let duty=0,lastTarget=0,targetID=1,phase='route',waypoints=[],waypoint=0;
   const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
-  const flank=x=>x<1000?x+420:x-420;
+  const flank=x=>x<1000?x+315:x-315;
   function steer(angle,spin,target){
     const error=Math.atan2(Math.sin(target-angle),Math.cos(target-angle));
     const desired=clamp(error*.2+Math.atan2(Math.sin(target-lastTarget),Math.cos(target-lastTarget)),-.08,.08);lastTarget=target;
@@ -20,10 +20,10 @@ export async function matchInputs(players=2,seed=0){
     if(!waypoints.length||phase==='refuel'&&st[24]&&st[22]===6000){
       targetID=Array.from({length:players-1},(_,id)=>id+1).filter(id=>st[23+id*16]>0).sort((a,b)=>Math.hypot(st[16+a*16]/65536-x,st[17+a*16]/65536-y)-Math.hypot(st[16+b*16]/65536-x,st[17+b*16]/65536-y))[0];
       const ex=st[16+targetID*16]/65536,ey=st[17+targetID*16]/65536;
-      phase='route';waypoint=0;waypoints=[[x,y-250],[flank(x),y-250],[flank(x),2500],[flank(ex),2500],[flank(ex),ey-234]];
+      phase='route';waypoint=0;waypoints=[[x,y-187.5],[flank(x),y-187.5],[flank(x),1875],[flank(ex),1875],[flank(ex),ey-234]];
     }
     const enemyX=st[16+targetID*16]/65536,enemyY=st[17+targetID*16]/65536;
-    if(phase!=='refuel'&&!st[23+targetID*16]){phase='refuel';waypoint=0;waypoints=[[x,enemyY-300],[enemyX,enemyY-300],[enemyX,enemyY+6]];}
+    if(phase!=='refuel'&&!st[23+targetID*16]){phase='refuel';waypoint=0;waypoints=[[x,enemyY-225],[enemyX,enemyY-225],[enemyX,enemyY+6]];}
     let bits=0;
     if(t>=2){
       if(phase==='route'||phase==='refuel'){

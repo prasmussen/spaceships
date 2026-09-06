@@ -53,13 +53,13 @@ test('thrust loops once while held and stops for release, empty fuel, death, mut
   try{
     let sound=true;
     const effects=new Effects(()=>({sound,particles:false})),frame=eventFrame(0);
-    frame[1]=-1;frame[22]=100;frame[23]=3;
+    frame[1]=-1;frame[22]=100;frame[23]=600;
     effects.unlock();effects.thrust(frame,[1,0]);effects.thrust(frame,[1,0]);
     assert.equal(sources.length,1);assert.equal(sources[0].started,true);assert.equal(sources[0].stopped,undefined);
     effects.thrust(frame,[0,0]);assert.equal(sources[0].stopped,true);
     effects.thrust(frame,[1,0]);frame[22]=0;effects.thrust(frame,[1,0]);assert.equal(sources.at(-1).stopped,true);
     frame[22]=100;effects.thrust(frame,[1,0]);frame[23]=0;effects.thrust(frame,[1,0]);assert.equal(sources.at(-1).stopped,true);
-    frame[23]=3;effects.thrust(frame,[1,0]);sound=false;effects.unlock();assert.equal(sources.at(-1).stopped,true);
+    frame[23]=600;effects.thrust(frame,[1,0]);sound=false;effects.unlock();assert.equal(sources.at(-1).stopped,true);
     const count=sources.length;effects.thrust(frame,[1,0]);assert.equal(sources.length,count);
     sound=true;effects.thrust(frame,[1,0]);effects.clear();assert.equal(sources.at(-1).stopped,true);
     effects.thrust(frame,[1,0]);frame[1]=0;effects.thrust(frame,[1,0]);assert.equal(sources.at(-1).stopped,true);

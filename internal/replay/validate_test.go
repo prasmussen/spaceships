@@ -48,7 +48,7 @@ func TestBrowserFormatAgainstWazero(t *testing.T) {
 	}
 	for name, mutate := range map[string]func(*Recording){
 		"identity":         func(r *Recording) { r.Identity.Map = "wrong" },
-		"input":            func(r *Recording) { r.Inputs[0] = []int{32, 0} },
+		"input":            func(r *Recording) { r.Inputs[0] = []int{64, 0} },
 		"pair length":      func(r *Recording) { r.Inputs[0] = []int{0} },
 		"initial":          func(r *Recording) { r.Initial[0] ^= 1 },
 		"checkpoint hash":  func(r *Recording) { r.Checkpoints[0].Hash = "1" },
@@ -121,7 +121,7 @@ func TestMultiplayerReplays(t *testing.T) {
 			if len(result.Scores) != count || result.Hash != r.Checkpoints[len(r.Checkpoints)-1].Hash {
 				t.Fatalf("JS/Go divergence: %+v", result)
 			}
-			r.Inputs[0][count-1] = 32
+			r.Inputs[0][count-1] = 64
 			if _, err := Validate(context.Background(), wasm, identity, r); err == nil {
 				t.Fatal("accepted invalid final-player input")
 			}

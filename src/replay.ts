@@ -7,7 +7,7 @@ export function checkReplay(value:unknown,identity:Identity):asserts value is Re
   if(!r||r.version!==2||!r.identity||['protocol','abi','wasm','map','config'].some(key=>r.identity[key as keyof Identity]!==identity[key as keyof Identity]))throw Error('Replay build, map or configuration mismatch');
   if(!Number.isInteger(r.players)||r.players<2||r.players>4||!Number.isInteger(r.seed)||r.seed<0||r.seed>0xffffffff||![0,32768,32769].includes(r.mapMode)||!Array.isArray(r.inputs)||r.inputs.length>216000)throw Error('Invalid replay bounds');
   const snapshot=(v:unknown)=>Array.isArray(v)&&v.length===STATE_BYTES&&v.every(b=>Number.isInteger(b)&&b>=0&&b<=255);
-  if(!snapshot(r.initial)||!r.inputs.every(pair=>Array.isArray(pair)&&pair.length===r.players&&pair.every(b=>Number.isInteger(b)&&b>=0&&b<=31)))throw Error('Invalid replay state or inputs');
+  if(!snapshot(r.initial)||!r.inputs.every(pair=>Array.isArray(pair)&&pair.length===r.players&&pair.every(b=>Number.isInteger(b)&&b>=0&&b<=63)))throw Error('Invalid replay state or inputs');
   if(!Array.isArray(r.checkpoints)||r.checkpoints.length>3601)throw Error('Invalid checkpoint count');
   let previous=0;
   for(const cp of r.checkpoints){if(!cp||!Number.isInteger(cp.tick)||cp.tick<=previous||cp.tick>r.inputs.length||typeof cp.hash!=='string'||!/^[-]?\d{1,20}$/.test(cp.hash)||!snapshot(cp.state))throw Error('Invalid checkpoint');previous=cp.tick;}

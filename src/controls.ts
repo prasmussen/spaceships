@@ -1,6 +1,6 @@
-const defaults=['KeyW','KeyA','KeyD','Space','ShiftLeft'];
+const defaults=['KeyW','KeyA','KeyD','Space','ShiftLeft','KeyE'];
 const arrows=['ArrowUp','ArrowLeft','ArrowRight'];
-const actions=['Thrust','Rotate left','Rotate right','Fire','Boost'];
+const actions=['Thrust','Rotate left','Rotate right','Fire','Boost','Shield'];
 const supported=/^(Key[A-Z]|Digit[0-9]|Arrow(Up|Down|Left|Right)|Space|Enter|ShiftLeft|ShiftRight)$/;
 function label(code:string){return code.replace(/^Key|^Digit/,'').replace('Arrow','').replace('ShiftLeft','Left Shift').replace('ShiftRight','Right Shift');}
 export class Controls {
@@ -12,7 +12,7 @@ export class Controls {
   private output=document.createElement('output');
   private buttons:HTMLButtonElement[]=[];
   constructor(clear:()=>void){
-    try{let saved=JSON.parse(localStorage.getItem('cavern-controls-v2')??localStorage.getItem('cavern-controls')??'null');if(!localStorage.getItem('cavern-controls-v2')&&Array.isArray(saved)){saved=saved.slice(0,4);saved.push(['ShiftLeft','ShiftRight','Enter'].find(c=>!saved.includes(c)));}if(Array.isArray(saved)&&saved.length===5&&saved.every(c=>typeof c==='string'&&supported.test(c))&&new Set(saved).size===5){this.codes=saved;localStorage.setItem('cavern-controls-v2',JSON.stringify(saved));}}catch{}
+    try{let saved=JSON.parse(localStorage.getItem('cavern-controls-v3')??localStorage.getItem('cavern-controls-v2')??localStorage.getItem('cavern-controls')??'null');if(Array.isArray(saved)){if(!localStorage.getItem('cavern-controls-v3')&&!localStorage.getItem('cavern-controls-v2'))saved=saved.slice(0,4);if(saved.length===4)saved.push(['ShiftLeft','ShiftRight','Enter'].find(c=>!saved.includes(c)));if(saved.length===5)saved.push(['KeyE','KeyQ','KeyF','Enter'].find(c=>!saved.includes(c)));if(saved.length===6&&saved.every((c:unknown)=>typeof c==='string'&&supported.test(c))&&new Set(saved).size===6){this.codes=saved;localStorage.setItem('cavern-controls-v3',JSON.stringify(saved));}}}catch{}
     try{const value=localStorage.getItem('cavern-reduced-motion');if(value==='true'||value==='false')this.reducedMotion=value==='true';}catch{}
     try{this.sound=localStorage.getItem('cavern-sound')!=='false';}catch{}
     this.dialog.id='controls-panel';this.dialog.setAttribute('aria-labelledby','controls-title');
@@ -21,7 +21,7 @@ export class Controls {
     this.dialog.append(title,intro);
     const help=document.createElement('section');help.id='controls-help';this.dialog.append(help);
     const group=document.createElement('fieldset'),legend=document.createElement('legend');legend.textContent='Your ship';group.append(legend);
-    for(let a=0;a<5;a++)group.append(this.binding(a,actions[a],actions[a]));
+    for(let a=0;a<6;a++)group.append(this.binding(a,actions[a],actions[a]));
     this.dialog.append(group);
     const motionLabel=document.createElement('label'),motion=document.createElement('input');motion.type='checkbox';motion.checked=this.reducedMotion;motionLabel.append(motion,' Reduce camera motion');this.dialog.append(motionLabel);
     motion.onchange=()=>{this.reducedMotion=motion.checked;try{localStorage.setItem('cavern-reduced-motion',String(motion.checked));}catch{}clear();};
@@ -57,7 +57,7 @@ export class Controls {
     button.setAttribute('aria-label',name);button.onclick=()=>{this.pending=index;this.output.textContent=`Press a key for ${name}.`;this.refresh();};
     this.buttons[index]=button;row.append(caption,button);return row;
   }
-  private save(){this.output.textContent='Controls saved.';try{localStorage.setItem('cavern-controls-v2',JSON.stringify(this.codes));}catch{this.output.textContent='Controls applied for this visit; browser storage is unavailable.';}this.refresh();}
+  private save(){this.output.textContent='Controls saved.';try{localStorage.setItem('cavern-controls-v3',JSON.stringify(this.codes));}catch{this.output.textContent='Controls applied for this visit; browser storage is unavailable.';}this.refresh();}
   private refresh(){
     this.buttons.forEach((button,i)=>{button.textContent=this.pending===i?'Press a key…':label(this.codes[i]);button.setAttribute('aria-pressed',String(this.pending===i));});
     const footer=document.querySelector('#controls-help')!;
@@ -66,6 +66,6 @@ export class Controls {
       const alias=arrows[i],keys=alias&&!this.codes.includes(alias)?`${label(this.codes[i])} / ${label(alias)}`:label(this.codes[i]);
       return `${keys} ${action.toLowerCase()}`;
     }).join(' · ');footer.append(line);
-    const hint=document.createElement('p');hint.textContent='Boost bursts for 0.3s, uses extra fuel and recharges in 5s. Release before boosting again. Land upright and slowly on any illuminated pad to refuel.';footer.append(hint);
+    const hint=document.createElement('p');hint.textContent='Boost bursts for 0.3s, uses extra energy and recharges in 5s. Release before boosting again. Shield lasts 1.5s, costs 25% energy and recharges in 5s. Release before activating again. Shielded wall impacts bounce. If either ship has a shield, ship collisions bounce both ships safely; active shields also absorb shots without hull damage. Land upright and slowly on any illuminated pad to recharge energy and repair hull.';footer.append(hint);
   }
 }

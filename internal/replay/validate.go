@@ -104,7 +104,7 @@ func Validate(ctx context.Context, wasm []byte, identity Identity, r Recording) 
 			return result, fmt.Errorf("invalid input vector length")
 		}
 		for _, buttons := range pair {
-			if buttons < 0 || buttons > 31 {
+			if buttons < 0 || buttons > 63 {
 				return result, fmt.Errorf("invalid input buttons")
 			}
 		}

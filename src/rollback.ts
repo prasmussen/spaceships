@@ -22,7 +22,7 @@ export class Rollback {
   constructor(engine:Engine,player:number,events?: (frame:Int32Array)=>void){this.events=events;if(!Number.isInteger(player)||player<0||player>=engine.players)throw Error('Invalid player');this.input=Array.from({length:engine.players},()=>new Map([[0,0],[1,0]]));this.acknowledgements=Array(engine.players).fill(1);this.engine=engine;this.originTick=engine.frame()[0];this.player=player;this.snapshots.set(0,engine.save());}
   get agreed(){return Math.min(this.complete,this.peerAck);}
   receive(player:number,tick:number,buttons:number){
-    if(!Number.isInteger(player)||player<0||player>=this.engine.players||player===this.player || !Number.isInteger(tick) || tick<0 || tick>this.tick+120 || !Number.isInteger(buttons)||buttons<0||buttons>31)throw new ProtocolError('Invalid input ownership, tick window or buttons');
+    if(!Number.isInteger(player)||player<0||player>=this.engine.players||player===this.player || !Number.isInteger(tick) || tick<0 || tick>this.tick+120 || !Number.isInteger(buttons)||buttons<0||buttons>63)throw new ProtocolError('Invalid input ownership, tick window or buttons');
     const old=this.input[player].get(tick);
     if(old!==undefined){if(old!==buttons)throw new ProtocolError('Conflicting submitted input');return;}
     if(tick<this.tick-120)throw new ProtocolError('Input outside retained rollback history');
@@ -36,7 +36,7 @@ export class Rollback {
   private updateComplete(){while(this.input.every(input=>input.has(this.complete+1)))this.complete++;}
   /** Called at fixed scheduling cadence. A stalled tick never creates extra commands. */
   advance(buttons:number){
-    if(!Number.isInteger(buttons)||buttons<0||buttons>31)throw new ProtocolError('Invalid local buttons');
+    if(!Number.isInteger(buttons)||buttons<0||buttons>63)throw new ProtocolError('Invalid local buttons');
     if(this.frozen)return false;
     const commandTick=this.tick+2;
     if(!this.input[this.player].has(commandTick))this.input[this.player].set(commandTick,buttons);

@@ -17,7 +17,7 @@ test('joining preserves existing ship state and adds a new pilot with zero score
   const old=await Engine.create(binary,32768,19,1);for(let i=0;i<60;i++)old.step([1]);
   const before=old.frame(),engine=await restoreRoom(binary,19,2,encode(old),[0,-1]);
   assert.deepEqual(engine.frame().slice(16,32),before.slice(16,32));assert.equal(engine.frame()[0],before[0]);
-  engine.step([0,0]);assert.equal(engine.frame()[39],3);assert.equal(engine.frame()[43],0);engine.load(engine.save());
+  engine.step([0,0]);assert.equal(engine.frame()[39],600);assert.equal(engine.frame()[43],0);engine.load(engine.save());
 });
 test('departure compacts ship and projectile ownership without resetting surviving scores',async()=>{
   const old=await Engine.create(binary,32768,19,3);for(let i=0;i<60;i++)old.step([0,0,0]);

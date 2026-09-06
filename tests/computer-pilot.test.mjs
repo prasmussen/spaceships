@@ -17,11 +17,11 @@ test('computer patrol repeats after reset and survives multiple refueling circui
       fired||=Boolean(bits&8);
       engine.step([0,bits]);
       const state=engine.frame();
-      left||=state[32]<2400*65536;
-      right||=left&&state[32]>2700*65536;
+      left||=state[32]<1800*65536;
+      right||=left&&state[32]>2025*65536;
       if(state[40]&&!grounded)landings++;
       grounded=Boolean(state[40]);
-      assert.equal(state[39],3,'patrol must not crash');
+      assert.equal(state[39],600,'patrol must not crash');
       assert.ok(state[38]>0,'patrol must refuel before running dry');
     }
     assert.ok(left&&right&&fired);
@@ -53,7 +53,7 @@ test('computer can patrol and refuel from every randomized starting pad',async()
     let airborne=false,landed=false;
     for(let tick=0;tick<4000;tick++){
       engine.step([0,pilot.input(engine.frame())]);const state=engine.frame();
-      assert.equal(state[39],3,`seed ${seed} must survive`);
+      assert.equal(state[39],600,`seed ${seed} must survive`);
       assert.ok(state[38]>0,`seed ${seed} must retain fuel`);
       if(!state[40])airborne=true;else if(airborne)landed=true;
     }

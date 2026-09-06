@@ -29,14 +29,14 @@ test('circle sweep agrees with analytic intersection away from quantization boun
   }
 });
 test('rectangle corners are round, not expanded square footprints',()=>{
-  const rect=32832+9*16; // pillar [1450,700,1750,1450]
-  assert.equal(s.rect_toi(1435*Q,685*Q,0,0,rect,16*Q),65537);
-  assert.equal(s.rect_toi(1440*Q,690*Q,0,0,rect,16*Q),0);
+  const rect=32832+9*16; // pillar [1088,525,1312,1088]
+  assert.equal(s.rect_toi(1073*Q,510*Q,0,0,rect,16*Q),65537);
+  assert.equal(s.rect_toi(1078*Q,515*Q,0,0,rect,16*Q),0);
 });
 test('uniform grid produces the same earliest contact as a full solid scan',()=>{
   const count=new DataView(s.memory.buffer).getInt32(32780,true);
   for(let i=0;i<4000;i++){
-    const x=((i*149)%6400)*Q,y=((i*313)%4000)*Q,dx=((i*7)%65-32)*Q,dy=((i*13)%65-32)*Q;
+    const x=((i*149)%4800)*Q,y=((i*313)%3000)*Q,dx=((i*7)%65-32)*Q,dy=((i*13)%65-32)*Q;
     let expected=65537;
     for(let id=0;id<count;id++)expected=Math.min(expected,s.rect_toi(x,y,dx,dy,32832+id*16,16*Q));
     assert.equal(s.terrain_toi(x,y,dx,dy,16*Q),expected,`grid query ${i}`);

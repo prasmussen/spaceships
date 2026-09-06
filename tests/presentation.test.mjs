@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {FlightInterpolation,FragmentInterpolation,PositionCorrection,projectilePose} from '../src/presentation.ts';
-function frame(x,y=100){const state=new Int32Array(2128);state[16]=x*65536;state[17]=y*65536;state[18]=65536;state[23]=3;return state;}
+function frame(x,y=100){const state=new Int32Array(2128);state[16]=x*65536;state[17]=y*65536;state[18]=65536;state[23]=600;return state;}
 function moving(tick){const state=frame(100+tick);state[0]=tick;return state;}
 test('moving shots stay centered on the nose on the ship render clock',()=>{
   for(const angle of [0,1024,2048,3072]){

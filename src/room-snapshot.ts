@@ -11,10 +11,10 @@ export async function restoreRoom(binary:BufferSource,seed:number,players:number
   // Validate the source before translating slot ownership.
   const source=await Engine.create(binary,32768,seed,oldPlayers);source.load(bytes);
   if(Array.from({length:oldPlayers},(_,id)=>old[27+id*16]).some(score=>score>=5))return engine;
-  const next=new Int32Array(bytes.slice().buffer);next[5]=players;next[1]=-1;next.fill(0,16,80);
+  const next=new Int32Array(bytes.slice().buffer);next[5]=players;next[1]=-1;next.fill(0,6,14);next.fill(0,16,80);
   for(let id=0;id<players;id++){
     const previous=slots[id],offset=16+id*16;
-    if(previous>=0)next.set(old.subarray(16+previous*16,32+previous*16),offset);
+    if(previous>=0){next.set(old.subarray(16+previous*16,32+previous*16),offset);next.set(old.subarray(6+previous*2,8+previous*2),6+id*2);}
     // A one-tick respawn picks a pad far from the current living players.
     else next[offset+10]=1;
   }

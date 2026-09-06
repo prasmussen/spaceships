@@ -10,13 +10,13 @@ test('debris hits a moving ship, rebounds and reduces speed slightly without dam
   chip(pool,{vx:64});st[3]=1;
   step(s);
   assert.ok(Math.abs(st[34])/Q>9.7&&Math.abs(st[34])/Q<10);
-  assert.equal(st[39],3);assert.ok(pool[2]<0);assert.ok(pool[7]&131072);
+  assert.equal(st[39],600);assert.ok(pool[2]<0);assert.ok(pool[7]&131072);
   assert.equal(st[43],0);
 });
 test('a dense cloud applies at most one slowdown per tick',async()=>{
   const {s,st,pool}=await create();st[32]=40*Q;st[33]=0;st[34]=-10*Q;
   for(let i=0;i<16;i++)chip(pool.subarray(i*8),{vx:64,id:i+1});st[3]=16;
-  step(s);assert.ok(Math.abs(st[34])/Q>9.75&&Math.abs(st[34])/Q<9.77);assert.equal(st[39],3);
+  step(s);assert.ok(Math.abs(st[34])/Q>9.75&&Math.abs(st[34])/Q<9.77);assert.equal(st[39],600);
 });
 test('near misses and dead ships do not take debris impacts',async()=>{
   for(const dead of [false,true]){
@@ -26,7 +26,7 @@ test('near misses and dead ships do not take debris impacts',async()=>{
   }
 });
 test('debris retains momentum in open space, expires at 3.1 seconds and restores through snapshots',async()=>{
-  const {s,st,pool}=await create();chip(pool,{x:1000,vx:4,vy:-2});st[3]=1;
+  const {s,st,pool}=await create();chip(pool,{x:750,vx:4,vy:-2});st[3]=1;
   step(s,60);assert.equal(pool[2],4*Q);assert.equal(pool[4],126);
   s.save_state(65536);step(s,60);const hash=s.state_hash(),copy=st.slice();
   assert.equal(s.load_state(65536,8512),1);step(s,60);assert.equal(s.state_hash(),hash);assert.deepEqual(st,copy);
@@ -35,14 +35,14 @@ test('debris retains momentum in open space, expires at 3.1 seconds and restores
 test('fast debris bounces off cave walls and platforms',async()=>{
   for(const vertical of [false,true]){
     const {s,st,pool}=await create(32768);
-    chip(pool,vertical?{x:1000,y:460,vy:64}:{x:1400,y:1000,vx:64});st[3]=1;step(s,2);
+    chip(pool,vertical?{x:750,y:335,vy:64}:{x:1038,y:750,vx:64});st[3]=1;step(s,2);
     assert.ok(pool[vertical?3:2]<0);
-    assert.ok(pool[vertical?1:0]<(vertical?500:1450)*Q);
+    assert.ok(pool[vertical?1:0]<(vertical?375:1088)*Q);
     step(s,10);s.save_state(65536);assert.equal(s.load_state(65536,8512),1);
   }
 });
 test('ship destruction creates sixteen canonical fragments with ship momentum',async()=>{
-  const {s,st,pool}=await create(32768);st[16]=1420*Q;st[17]=1000*Q;st[18]=64*Q;st[24]=0;
+  const {s,st,pool}=await create(32768);st[16]=1058*Q;st[17]=750*Q;st[18]=64*Q;st[24]=0;
   step(s);assert.equal(st[23],0);
   assert.equal(Array.from({length:256},(_,i)=>pool[i*8+7]).filter(Boolean).length,16);
   assert.ok(Array.from({length:16},(_,i)=>Math.abs(pool[i*8+2])/Q).every(v=>v>25));
@@ -54,7 +54,7 @@ test('debris contact and its slowdown reproduce exactly after rollback',async()=
   assert.equal(s.load_state(65536,8512),1);step(s,10);assert.equal(s.state_hash(),hash);assert.deepEqual(st,first);
 });
 test('snapshot validation rejects malformed debris metadata and lifetime atomically',async()=>{
-  const {s,st,pool}=await create();chip(pool,{x:1000});st[3]=1;
+  const {s,st,pool}=await create();chip(pool,{x:750});st[3]=1;
   for(const [offset,value]of [[28,0x10000010],[28,0x10040000],[28,1],[16,187]]){
     s.save_state(65536);new DataView(s.memory.buffer).setInt32(65536+320+offset,value,true);
     const hash=s.state_hash();assert.equal(s.load_state(65536,8512),0);assert.equal(s.state_hash(),hash);

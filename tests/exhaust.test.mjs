@@ -10,7 +10,7 @@ async function create({angle=0,dx=0,dy=44,map=0,source=0}={}){
   return {s,st,a,b,source};
 }
 function step({s,source},thrust=1,n=1){const input=new Uint8Array(s.memory.buffer,2048,2);input.fill(0);input[source]=thrust;for(let i=0;i<n;i++)s.step(2048,1);}
-async function delta(options={}){const active=await create(options),idle=await create(options);step(active);step(idle,0);const b=active.b;assert.equal(active.st[b+7],3);return [active.st[b+2]-idle.st[b+2],active.st[b+3]-idle.st[b+3]];}
+async function delta(options={}){const active=await create(options),idle=await create(options);step(active);step(idle,0);const b=active.b;assert.equal(active.st[b+7],600);return [active.st[b+2]-idle.st[b+2],active.st[b+3]-idle.st[b+3]];}
 test('exhaust pushes behind the thruster in all four orientations for either player',async()=>{
   for(const source of [0,1])for(const [angle,dx,dy]of [[0,0,44],[1024,-44,0],[2048,0,-44],[3072,44,0]]){
     const [vx,vy]=await delta({angle,dx,dy,source});assert.ok(vx*dx+vy*dy>0);
@@ -38,8 +38,8 @@ test('empty tanks, dead emitters, dead targets do not receive exhaust force',asy
 test('cave corners block exhaust even when the target is in range',async()=>{
   const games=[];
   for(const map of [0,32768])for(const thrust of [0,1]){
-    const game=await create({map,angle:2560,dx:50,dy:-50});game.st[16]=1430*Q;game.st[17]=730*Q;game.st[32]=1480*Q;game.st[33]=680*Q;
-    step(game,thrust);assert.equal(game.st[23],3);assert.equal(game.st[39],3);games.push(game.st[34]);
+    const game=await create({map,angle:2560,dx:50,dy:-50});game.st[16]=1068*Q;game.st[17]=555*Q;game.st[32]=1118*Q;game.st[33]=505*Q;
+    step(game,thrust);assert.equal(game.st[23],600);assert.equal(game.st[39],600);games.push(game.st[34]);
   }
   assert.ok(games[1]>games[0]);assert.equal(games[2],games[3]);
 });
@@ -50,32 +50,32 @@ test('exhaust forces reproduce exactly after snapshot restoration',async()=>{
 test('angled exhaust gently slides a protected ship along its own pad in either direction',async()=>{
   for(const direction of [-1,1]){
     const game=await create({map:32769,source:1});const {st,s,a,b}=game;
-    st[b]=450*Q;st[b+1]=1684*Q-1;st[b+8]=1;st[b+12]=90;st[b+6]=3000;
-    st[a]=(450-direction*40)*Q;st[a+1]=1668*Q;st[a+4]=direction<0?768:3328;
+    st[b]=338*Q;st[b+1]=1259*Q-1;st[b+8]=1;st[b+12]=90;st[b+6]=3000;
+    st[a]=(338-direction*40)*Q;st[a+1]=1243*Q;st[a+4]=direction<0?768:3328;
     s.save_state(65536);step(game,1,10);
-    assert.ok((st[b]-450*Q)*direction>8*Q);assert.ok(Math.abs(st[b]/Q-450)<20);
-    assert.equal(st[b+8],1);assert.equal(st[b+1],1684*Q-1);assert.equal(st[b+7],3);assert.ok(st[b+6]>3000);
+    assert.ok((st[b]-338*Q)*direction>8*Q);assert.ok(Math.abs(st[b]/Q-338)<20);
+    assert.equal(st[b+8],1);assert.equal(st[b+1],1259*Q-1);assert.equal(st[b+7],600);assert.ok(st[b+6]>3000);
     const hash=s.state_hash();assert.equal(s.load_state(65536,8512),1);step(game,1,10);assert.equal(s.state_hash(),hash);
     s.save_state(65536);assert.equal(s.load_state(65536,8512),1);
   }
 });
 test('straight downward exhaust cannot push a parked ship through its pad',async()=>{
   const game=await create({map:32769,source:1}),{st,a,b}=game;
-  st[b]=450*Q;st[b+1]=1684*Q-1;st[b+8]=1;st[a]=450*Q;st[a+1]=1640*Q;st[a+4]=0;
-  step(game,1,30);assert.ok(st[b]>465*Q);assert.equal(st[b+1],1684*Q-1);assert.equal(st[b+8],1);assert.equal(st[b+7],3);
+  st[b]=338*Q;st[b+1]=1259*Q-1;st[b+8]=1;st[a]=338*Q;st[a+1]=1215*Q;st[a+4]=0;
+  step(game,1,30);assert.ok(st[b]>353*Q);assert.equal(st[b+1],1259*Q-1);assert.equal(st[b+8],1);assert.equal(st[b+7],600);
 });
 
 test('off-center upright exhaust visibly nudges a parked ship away from the jet',async()=>{
   for(const direction of [-1,1]){
     const game=await create({map:32769,source:1}),{st,a,b}=game;
-    st[b]=450*Q;st[b+1]=1684*Q-1;st[b+8]=1;st[a]=(450-direction*10)*Q;st[a+1]=1640*Q;st[a+4]=0;
+    st[b]=338*Q;st[b+1]=1259*Q-1;st[b+8]=1;st[a]=(338-direction*10)*Q;st[a+1]=1215*Q;st[a+4]=0;
     step(game,1,30);
-    assert.ok((st[b]-450*Q)*direction>15*Q);assert.equal(st[b+8],1);assert.equal(st[b+7],3);assert.equal(st[b+1],1684*Q-1);
+    assert.ok((st[b]-338*Q)*direction>15*Q);assert.equal(st[b+8],1);assert.equal(st[b+7],600);assert.equal(st[b+1],1259*Q-1);
   }
 });
 test('parked ship continues sliding after a brief blast from the locally controlled ship',async()=>{
   const game=await create({map:32769,source:0}),{st,s,a,b}=game;
-  st[b]=2750*Q;st[b+1]=1684*Q-1;st[b+8]=1;st[a]=2740*Q;st[a+1]=1640*Q;st[a+4]=0;
+  st[b]=2062*Q;st[b+1]=1259*Q-1;st[b+8]=1;st[a]=2052*Q;st[a+1]=1215*Q;st[a+4]=0;
   step(game,1,10);const first=st[b],velocity=st[b+2];assert.ok(velocity>0);
   s.save_state(65536);step(game,0,20);assert.ok(st[b]>first+4*Q);assert.ok(st[b+2]<velocity);assert.equal(st[b+8],1);
   const hash=s.state_hash();assert.equal(s.load_state(65536,8512),1);step(game,0,20);assert.equal(s.state_hash(),hash);
