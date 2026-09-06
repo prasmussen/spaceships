@@ -1,4 +1,4 @@
-const defaults=['KeyW','KeyA','KeyD','Space','ArrowUp','ArrowLeft','ArrowRight','Enter','KeyR'];
+const defaults=['KeyW','KeyA','KeyD','Space','KeyR'];
 const actions=['Thrust','Rotate left','Rotate right','Fire'];
 const supported=/^(Key[A-Z]|Digit[0-9]|Arrow(Up|Down|Left|Right)|Space|Enter|ShiftLeft|ShiftRight)$/;
 function label(code:string){return code.replace(/^Key|^Digit/,'').replace('Arrow','').replace('ShiftLeft','Left Shift').replace('ShiftRight','Right Shift');}
@@ -11,19 +11,16 @@ export class Controls {
   private output=document.createElement('output');
   private buttons:HTMLButtonElement[]=[];
   constructor(clear:()=>void){
-    try{const saved=JSON.parse(localStorage.getItem('cavern-controls')??'null');if(Array.isArray(saved)&&saved.length===9&&saved.every(c=>typeof c==='string'&&supported.test(c))&&new Set(saved).size===9)this.codes=saved;}catch{}
+    try{let saved=JSON.parse(localStorage.getItem('cavern-controls')??'null');if(Array.isArray(saved)&&saved.length===9)saved=[...saved.slice(0,4),saved[8]];if(Array.isArray(saved)&&saved.length===5&&saved.every(c=>typeof c==='string'&&supported.test(c))&&new Set(saved).size===5){this.codes=saved;localStorage.setItem('cavern-controls',JSON.stringify(saved));}}catch{}
     try{const value=localStorage.getItem('cavern-reduced-motion');if(value==='true'||value==='false')this.reducedMotion=value==='true';}catch{}
     try{this.sound=localStorage.getItem('cavern-sound')==='true';}catch{}
     this.dialog.id='controls-panel';this.dialog.setAttribute('aria-labelledby','controls-title');
     const title=document.createElement('h2');title.id='controls-title';title.textContent='Controls';
-    const intro=document.createElement('p');intro.textContent='Select an action, then press a key. Escape cancels. Each action needs a different key. Online play accepts either player’s controls.';
+    const intro=document.createElement('p');intro.textContent='Select an action, then press a key. Escape cancels. Each action needs a different key. These controls apply to your ship in practice and online matches.';
     this.dialog.append(title,intro);
-    for(let player=0;player<2;player++){
-      const group=document.createElement('fieldset'),legend=document.createElement('legend');legend.textContent=`Player ${player+1}`;group.append(legend);
-      for(let a=0;a<4;a++)group.append(this.binding(player*4+a,`Player ${player+1} ${actions[a]}`,actions[a]));
-      this.dialog.append(group);
-    }
-    this.dialog.append(this.binding(8,'Restart or rematch','Restart / rematch'));
+    const group=document.createElement('fieldset'),legend=document.createElement('legend');legend.textContent='Your ship';group.append(legend);
+    for(let a=0;a<4;a++)group.append(this.binding(a,actions[a],actions[a]));
+    this.dialog.append(group,this.binding(4,'Restart or rematch','Restart / rematch'));
     const motionLabel=document.createElement('label'),motion=document.createElement('input');motion.type='checkbox';motion.checked=this.reducedMotion;motionLabel.append(motion,' Reduce camera motion');this.dialog.append(motionLabel);
     motion.onchange=()=>{this.reducedMotion=motion.checked;try{localStorage.setItem('cavern-reduced-motion',String(motion.checked));}catch{}clear();};
     const soundLabel=document.createElement('label'),sound=document.createElement('input');sound.type='checkbox';sound.checked=this.sound;soundLabel.append(sound,' Sound effects');this.dialog.append(soundLabel);
@@ -48,8 +45,8 @@ export class Controls {
     this.refresh();
   }
   get open(){return this.dialog.open;}
-  lookup(code:string):[number,number]|undefined {const i=this.codes.indexOf(code);return i>=0&&i<8?[Math.floor(i/4),1<<(i%4)]:undefined;}
-  restart(code:string){return code===this.codes[8];}
+  lookup(code:string):number {const i=this.codes.indexOf(code);return i>=0&&i<4?1<<i:0;}
+  restart(code:string){return code===this.codes[4];}
   private binding(index:number,name:string,text:string){
     const row=document.createElement('div'),caption=document.createElement('span'),button=document.createElement('button');caption.textContent=text;
     button.setAttribute('aria-label',name);button.onclick=()=>{this.pending=index;this.output.textContent=`Press a key for ${name}.`;this.refresh();};
@@ -60,7 +57,7 @@ export class Controls {
     this.buttons.forEach((button,i)=>{button.textContent=this.pending===i?'Press a key…':label(this.codes[i]);button.setAttribute('aria-pressed',String(this.pending===i));});
     const footer=document.querySelector('footer')!;
     footer.replaceChildren();
-    for(let p=0;p<2;p++){const line=document.createElement('span');if(p)line.className='p2-controls';line.textContent=`P${p+1}: ${actions.map((action,i)=>`${label(this.codes[p*4+i])} ${action.toLowerCase()}`).join(' · ')}`;footer.append(line);}
-    const restart=document.createElement('p');restart.textContent=`${label(this.codes[8])} restart / rematch · Land upright and slowly on your illuminated pad to refuel.`;footer.append(restart);
+    const line=document.createElement('span');line.textContent=actions.map((action,i)=>`${label(this.codes[i])} ${action.toLowerCase()}`).join(' · ');footer.append(line);
+    const restart=document.createElement('p');restart.textContent=`${label(this.codes[4])} restart / rematch · Land upright and slowly on your illuminated pad to refuel.`;footer.append(restart);
   }
 }

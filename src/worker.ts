@@ -1,6 +1,6 @@
 import type { Simulation } from './simulation';
 let sim: Simulation;
-let buttons = [0, 0];
+let buttons = 0;
 let deadline = 0;
 let paused = false;
 let map = 32768;
@@ -13,7 +13,7 @@ function frame(events?:number[]) {
 }
 onmessage = ({ data }) => {
   if (data.type === 'input') buttons = data.buttons;
-  if (data.type === 'pause') { paused = data.paused; buttons = [0, 0]; deadline = performance.now(); }
+  if (data.type === 'pause') { paused = data.paused; buttons = 0; deadline = performance.now(); }
   if (data.type === 'mode') { map = data.mode ? 32768 : 0; if(sim) {sim.init(1024,map,0); frame();} }
   if (data.type === 'reset' && sim) { sim.init(1024, map, 0); deadline = performance.now(); frame(); }
 };
@@ -30,7 +30,7 @@ async function start() {
     let count = 0;
     const events:number[]=[];
     while (now >= deadline && count < 12) {
-      new Uint8Array(sim.memory.buffer, 2048, 2).set(buttons);
+      new Uint8Array(sim.memory.buffer, 2048, 2).set([buttons, 0]);
       sim.step(2048, 1);
       sim.write_frame(81920);
       const eventCount=new Int32Array(sim.memory.buffer,90304,1)[0];

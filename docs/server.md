@@ -7,7 +7,7 @@ npm run build
 go run ./cmd/server
 ```
 
-The default listener is `127.0.0.1:8080`, serving the production `dist/` assets and APIs. It verifies the WASM SHA-256 against the manifest before listening. `npm run dev` also proxies `/api` and `/ws` to that service. The browser's internet-match client is still to be connected; local play is unaffected by the service.
+The default listener is `127.0.0.1:8080`, serving the production `dist/` assets and APIs. It verifies the WASM SHA-256 against the manifest before listening. `npm run dev` also proxies `/api` and `/ws` to that service. Online duel uses the service for matchmaking and signaling; solo practice works without it.
 
 ## Configuration
 

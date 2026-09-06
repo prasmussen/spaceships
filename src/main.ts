@@ -5,7 +5,6 @@ import {Controls} from './controls';
 import {Effects} from './effects';
 const canvas=document.querySelector<HTMLCanvasElement>('#view')!;
 const status=document.querySelector<HTMLElement>('#status')!;
-const opponent=document.querySelector<HTMLElement>('#opponent')!;
 const result=document.querySelector<HTMLElement>('#result')!;
 const worker=new Worker(new URL('./worker.ts',import.meta.url),{type:'module'});
 let labActive=false;
@@ -13,7 +12,7 @@ let online:OnlineLobby|undefined;
 let localSlot=0;
 let onlineButtons=[0,0];
 let correction=0;
-let state=new Int32Array(2096),buttons=[0,0],mode=2,snapCamera=true;
+let state=new Int32Array(2096),buttons=[0,0],mode=1,snapCamera=true;
 const held=new Set<string>();
 const guide=document.querySelector<HTMLDialogElement>('#guide-panel')!;
 document.querySelector('#guide-open')!.addEventListener('click',()=>{held.clear();input();guide.showModal();});
@@ -21,11 +20,11 @@ guide.onclose=()=>{held.clear();input();};
 const controls=new Controls(()=>{held.clear();input();});
 const effects=new Effects(()=>({sound:controls.sound&&!document.hidden,particles:!controls.reducedMotion}));
 for(const name of ['pointerdown','keydown','change'])window.addEventListener(name,()=>effects.unlock());
-function input(){buttons=[0,0];for(const key of held){const entry=controls.lookup(key);if(entry){const player=mode===2?entry[0]:0;buttons[player]|=entry[1];}}worker.postMessage({type:'input',buttons});if(mode===3)online?.input(buttons[0]);}
+function input(){let pressed=0;for(const key of held)pressed|=controls.lookup(key);buttons=[pressed,0];worker.postMessage({type:'input',buttons:pressed});if(mode===3)online?.input(pressed);}
 function reset(){effects.clear();if(mode===3){online?.rematch();return;}held.clear();input();snapCamera=true;worker.postMessage({type:'reset'});}
 document.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(button=>button.onclick=()=>{
   if(mode===3)online?.leave();
-  effects.clear();mode=Number(button.dataset.mode);localSlot=0;document.body.classList.toggle('combat',mode===2);
+  effects.clear();mode=Number(button.dataset.mode);localSlot=0;result.hidden=true;
   document.querySelectorAll('[data-mode]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
   held.clear();input();snapCamera=true;worker.postMessage({type:'mode',mode});
 });
@@ -38,12 +37,12 @@ function hud(player:number){const o=16+player*16;return `<span>FUEL <strong>${Ma
 worker.onmessage=({data})=>{
   if(data.type==='frame'){
     if(labActive||mode===3)return;
-    state=new Int32Array(data.buffer);effects.consume(state);status.innerHTML=hud(0);opponent.innerHTML=hud(1);
+    state=new Int32Array(data.buffer);effects.consume(state);status.innerHTML=hud(0);
     result.hidden=state[1]<0;
     if(state[1]>=0)document.querySelector('#winner')!.textContent=`Player ${state[1]+1} wins · ${state[27]} : ${state[43]}`;
   }else if(data.type==='error')status.textContent=data.message;
 };
-render(canvas,effects,()=>({state,buttons:mode===3?onlineButtons:buttons,mode,localSlot,correction:mode===3?correction:0,reducedMotion:controls.reducedMotion,snap:snapCamera,didSnap:()=>{snapCamera=false;}})).catch(error=>{
+render(canvas,effects,()=>({state,buttons:mode===3?onlineButtons:buttons,localSlot,correction:mode===3?correction:0,reducedMotion:controls.reducedMotion,snap:snapCamera,didSnap:()=>{snapCamera=false;}})).catch(error=>{
   worker.terminate();status.textContent=String(error);document.body.classList.add('unavailable');
 });
 
@@ -71,7 +70,7 @@ labWorker.onmessage=({data})=>{
   if(data.type==='result'){
     run.disabled=false;labStatus.textContent=`Converged · ${data.metrics[0].tick} ticks · ${data.metrics.map((m:{rollbacks:number;maxDepth:number;stalls:number},p:number)=>`P${p+1}: ${m.rollbacks} rollbacks, depth ${m.maxDepth}, ${m.stalls} stalls`).join(' · ')}`;replayReady(data.replay);
   }else if(data.type==='loaded'){labStatus.textContent='Replay validated against its recorded checkpoints.';replayReady(data.replay);}
-  else if(data.type==='frame'&&labActive){state=new Int32Array(data.buffer);status.innerHTML=hud(0);opponent.innerHTML=hud(1);document.querySelector('#seek-tick')!.textContent=seek.value;}
+  else if(data.type==='frame'&&labActive){state=new Int32Array(data.buffer);status.innerHTML=hud(0);document.querySelector('#seek-tick')!.textContent=seek.value;}
   else if(data.type==='error'){run.disabled=false;labStatus.textContent=data.message;}
 };
 seek.oninput=()=>{labWorker.postMessage({type:'seek',tick:Number(seek.value)});snapCamera=true;};
@@ -86,7 +85,7 @@ document.querySelector<HTMLInputElement>('#replay-file')!.onchange=async e=>{
 };
 
 online=new OnlineLobby({
-  start:slot=>{effects.clear();mode=3;localSlot=slot;labActive=false;labPanel.hidden=true;held.clear();input();snapCamera=true;document.body.classList.remove('combat');worker.postMessage({type:'pause',paused:true});},
-  frame:(data,slot)=>{if(mode!==3)return;onlineButtons=data.inputs;correction=data.rollbacks+data.desyncs;state=new Int32Array(data.buffer);effects.consume(state);status.innerHTML=hud(slot);opponent.innerHTML=hud(1-slot);result.hidden=state[1]<0;if(state[1]>=0)document.querySelector('#winner')!.textContent=`Player ${state[1]+1} wins · ${state[27]} : ${state[43]} · unverified`;},
-  leave:()=>{effects.clear();mode=2;localSlot=0;held.clear();input();snapCamera=true;document.body.classList.add('combat');worker.postMessage({type:'pause',paused:document.hidden});document.querySelector('#connection-status')!.textContent='';}
+  start:slot=>{effects.clear();mode=3;localSlot=slot;labActive=false;labPanel.hidden=true;held.clear();input();snapCamera=true;result.hidden=true;document.querySelectorAll('[data-mode]').forEach(item=>item.setAttribute('aria-pressed','false'));worker.postMessage({type:'pause',paused:true});},
+  frame:(data,slot)=>{if(mode!==3)return;onlineButtons=data.inputs;correction=data.rollbacks+data.desyncs;state=new Int32Array(data.buffer);effects.consume(state);status.innerHTML=hud(slot);result.hidden=state[1]<0;if(state[1]>=0)document.querySelector('#winner')!.textContent=`Player ${state[1]+1} wins · ${state[27]} : ${state[43]} · unverified`;},
+  leave:()=>{effects.clear();mode=1;localSlot=0;held.clear();input();snapCamera=true;result.hidden=true;document.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(item=>item.setAttribute('aria-pressed',String(item.dataset.mode==='1')));worker.postMessage({type:'mode',mode});worker.postMessage({type:'pause',paused:document.hidden});document.querySelector('#connection-status')!.textContent='';}
 });

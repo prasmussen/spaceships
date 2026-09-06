@@ -1,6 +1,6 @@
 # Cavern Duel
 
-A work-in-progress implementation of `plan.txt`: local spaceship deathmatch, flight/landing practice, online invite/queue play, and an interactive rollback/replay laboratory. Gameplay is handwritten WAT compiled to WASM. TypeScript workers run the simulation; WebGPU renders the cave.
+A work-in-progress implementation of `plan.txt`: online spaceship deathmatch, flight/landing practice, online invite/queue play, and an interactive rollback/replay laboratory. Gameplay is handwritten WAT compiled to WASM. TypeScript workers run the simulation; WebGPU renders the cave.
 
 Requires a recent Node.js (22.18+ for the TypeScript test modules) and a desktop WebGPU browser.
 
@@ -10,9 +10,9 @@ npm run build
 npm run dev
 ```
 
-Open the printed localhost URL. Player 1 uses **W/A/D + Space**; player 2 uses **arrow keys + Enter**. **R** restarts. Open Controls to change either player’s bindings or the restart/rematch key. Bindings persist in this browser; the footer always shows the current keys. Reduce camera motion disables velocity look-ahead and correction offsets; its initial value follows the system preference. Counter-steer to stop rotation. Land upright and slowly on your own illuminated pad to refuel. Other terrain contact crashes; shots take three hull points to kill. First to five wins; tied winning scores continue until one player leads.
+Open the printed localhost URL. Use **W/A/D + Space** to control your ship. Multiplayer requires a separate browser for each player through Online duel. **R** restarts. Open Controls to change your bindings or the restart/rematch key. Bindings persist in this browser; the footer always shows the current keys. Reduce camera motion disables velocity look-ahead and correction offsets; its initial value follows the system preference. Counter-steer to stop rotation. Land upright and slowly on your own illuminated pad to refuel. Other terrain contact crashes; shots take three hull points to kill. First to five wins; tied winning scores continue until one player leads.
 
-Select Flight lab for open practice or Landing course for a single view. Rollback lab runs two independent peers behind configurable delay/loss/outages, compares them with a reference replay, and lets you seek, save or open a validated replay. Focus loss clears controls; hidden tabs pause standalone play. Graphics device loss triggers automatic resource rebuilding while the simulation continues. If the GPU remains unavailable, Retry graphics attempts recovery without resetting the match.
+Select Flight lab for open practice or Landing course to practice refueling. Rollback lab runs two independent peers behind configurable delay/loss/outages, compares them with a reference replay, and lets you seek, save or open a validated replay. Focus loss clears controls; hidden tabs pause standalone play. Graphics device loss triggers automatic resource rebuilding while the simulation continues. If the GPU remains unavailable, Retry graphics attempts recovery without resetting the match.
 
 ```sh
 npm test                            # simulation, collision, combat, rollback, replay, desync

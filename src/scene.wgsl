@@ -1,4 +1,4 @@
-struct View { size: vec2f, offset: vec2f, camera: vec2f, mode:f32, padding:f32 };
+struct View { size: vec2f, camera: vec2f, mode:f32, padding:f32 };
 struct Ship { position:vec2f, angle:f32, alive:f32, thrust:f32, protection:f32, padding:vec2f };
 @group(0) @binding(0) var<uniform> view: View;
 @group(0) @binding(1) var<storage,read> terrain: array<vec4f>;
@@ -12,7 +12,7 @@ fn line(p:vec2f, a:vec2f, b:vec2f)->f32 {
 }
 fn tint(player:u32)->vec3f { return select(vec3f(.18,.85,.72),vec3f(1.,.48,.25),player==1u); }
 @fragment fn fs(@builtin(position) pos:vec4f)->@location(0) vec4f {
-  let world=pos.xy-view.offset-view.size*.5+view.camera;
+  let world=pos.xy-view.size*.5+view.camera;
   let grid=abs(fract(world/100.+.5)-.5)*100.;
   var color=vec3f(.025,.044,.062);
   if(min(grid.x,grid.y)<.7){color+=vec3f(.025,.044,.05);}

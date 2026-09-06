@@ -86,6 +86,8 @@ export async function checkLobby(browser,turn){
     await gamePages[0].unroute('**/api/session');
     await gamePages[0].screenshot({path:'artifacts/online-invite.png'});
     await gamePages[0].getByRole('button',{name:'Online duel',exact:true}).click();await gamePages[0].getByRole('button',{name:'Leave online',exact:true}).click();
+    assert.equal(await gamePages[0].getByRole('button',{name:'Landing course',exact:true}).getAttribute('aria-pressed'),'true');
+    await gamePages[0].waitForFunction(()=>document.querySelector('#status').textContent.includes('ON PAD'));
     await gamePages[1].waitForFunction(()=>/Left match|disconnected/i.test(document.querySelector('#connection-status').textContent));
     await gamePages[0].locator('#online-replay-download').waitFor({state:'visible'});
     const downloadPromise=gamePages[0].waitForEvent('download');
@@ -106,7 +108,7 @@ export async function checkLobby(browser,turn){
       await Promise.all(gamePages.map(page=>page.getByRole('button',{name:'Find opponent',exact:true}).click()));
       await Promise.all(gamePages.map(page=>page.waitForFunction(()=>document.querySelector('#connection-status').textContent.includes('Online ·'),{},{timeout:20000})));
       if(turn)await Promise.all(gamePages.map(page=>page.waitForFunction(()=>document.querySelector('#connection-status').textContent.includes('· relay ·'))));
-      await gamePages[1].keyboard.down('ArrowUp');await gamePages[1].waitForTimeout(250);await gamePages[1].keyboard.up('ArrowUp');
+      await gamePages[1].keyboard.down('w');await gamePages[1].waitForTimeout(250);await gamePages[1].keyboard.up('w');
       assert.match(await gamePages[1].locator('#status').textContent(),/IN FLIGHT/);
       await gamePages[0].getByRole('button',{name:'Online duel',exact:true}).click();await gamePages[0].getByRole('button',{name:'Leave online',exact:true}).click();
       await gamePages[1].waitForFunction(()=>/Left match|disconnected/i.test(document.querySelector('#connection-status').textContent));

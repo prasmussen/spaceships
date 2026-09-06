@@ -138,7 +138,7 @@ Later, run replay validation in Go using the identical WASM binary through wazer
 |---|---|---|
 | **1. Flight sandbox** | WASM gravity, thrust, inertia, fuel and rotation; minimal WebGPU ship and ship-following camera | Coasting and counter-steering feel controllable; recorded inputs reproduce identical hashes across render rates |
 | **2. Landing course** | Cave terrain, swept collision, one base, landing checks, refueling and instant practice restart | Skilled approaches succeed consistently; unsafe landings crash; maximum-speed flight cannot tunnel through terrain |
-| **3. Local combat** | Two ships, shared-keyboard split-screen, inherited-velocity projectiles, damage, respawns and scoring | Complete first-to-five matches; trades, crashes and spawn protection behave consistently |
+| **3. Combat** | Two ships, separate-browser multiplayer, inherited-velocity projectiles, damage, respawns and scoring | Complete first-to-five matches; trades, crashes and spawn protection behave consistently |
 | **4. Rollback laboratory** | Two independent WASM instances behind simulated network conditions; snapshots, replay viewer and diagnostics | Delayed/reordered/duplicated/lost inputs converge to the reference result; prolonged outages stall cleanly |
 | **5. Internet invite match** | Go guest sessions, invite rooms, signaling, STUN/TURN and recovery | Complete matches over direct and forced-relay connections; mismatched builds are rejected; disconnects exit cleanly |
 | **6. Casual release** | Public queue, onboarding, configurable keys, connection UI and operational metrics | Two strangers can join, play, rematch and leave without manual intervention |

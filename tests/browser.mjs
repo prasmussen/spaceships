@@ -25,6 +25,10 @@ try {
   page.on('pageerror', error=>errors.push(String(error)));
   page.on('console', message=>{if(message.type()==='error')errors.push(message.text());});
   await page.addInitScript(()=>{
+    if(!sessionStorage.getItem('controls-migration-seeded')){
+      localStorage.setItem('cavern-controls',JSON.stringify(['KeyW','KeyA','KeyD','Space','ArrowUp','ArrowLeft','ArrowRight','Enter','KeyT']));
+      sessionStorage.setItem('controls-migration-seeded','true');
+    }
     window.testSounds=0;
     const Audio=window.AudioContext;window.AudioContext=class extends Audio{createOscillator(){window.testSounds++;return super.createOscillator();}};
     window.testGPUDevices=[];window.testGPUUnavailable=false;
@@ -42,11 +46,14 @@ try {
   await page.waitForTimeout(500);
   assert.equal(await page.locator('body').evaluate(e=>e.classList.contains('unavailable')),false);
   await page.getByRole('button',{name:'Controls',exact:true}).click();
-  await page.getByRole('button',{name:'Player 1 Thrust',exact:true}).click();
+  assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('cavern-controls'))),['KeyW','KeyA','KeyD','Space','KeyT']);
+  assert.equal(await page.locator('#controls-panel fieldset').count(),1);
+  assert.equal(await page.getByRole('button',{name:'Restart or rematch',exact:true}).textContent(),'T');
+  await page.getByRole('button',{name:'Thrust',exact:true}).click();
   await page.keyboard.press('a');
   assert.match(await page.locator('#controls-panel output').textContent(),/already assigned/);
   await page.keyboard.press('i');
-  assert.equal(await page.getByRole('button',{name:'Player 1 Thrust',exact:true}).textContent(),'I');
+  assert.equal(await page.getByRole('button',{name:'Thrust',exact:true}).textContent(),'I');
   await page.getByRole('button',{name:'Done',exact:true}).click();
   await page.reload();
   await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('ON PAD'));
@@ -79,17 +86,12 @@ try {
   await page.keyboard.down('w');await page.waitForTimeout(400);await page.keyboard.up('w');
   assert.match(await page.locator('#status').textContent(),/IN FLIGHT/);
   await page.screenshot({path:'artifacts/landing.png'});
-  await page.getByRole('button',{name:'Local duel',exact:true}).click();
-  await page.waitForTimeout(100);
-  await page.keyboard.down('w');await page.keyboard.down('ArrowUp');
-  await page.keyboard.down('Space');await page.keyboard.down('Enter');
-  await page.waitForTimeout(500);
-  await page.keyboard.up('w');await page.keyboard.up('ArrowUp');await page.keyboard.up('Space');await page.keyboard.up('Enter');
-  assert.match(await page.locator('#status').textContent(),/IN FLIGHT/);
-  assert.match(await page.locator('#opponent').textContent(),/IN FLIGHT/);
-  assert.ok(await page.locator('#opponent').isVisible());
+  assert.equal(await page.getByRole('button',{name:'Local duel',exact:true}).count(),0);
+  await page.keyboard.press('r');
+  await page.keyboard.down('ArrowUp');await page.waitForTimeout(150);await page.keyboard.up('ArrowUp');
+  assert.match(await page.locator('#status').textContent(),/ON PAD/);
+  await page.keyboard.down('Space');await page.waitForTimeout(300);await page.keyboard.up('Space');
   assert.ok(await page.evaluate(()=>window.testSounds)>0,'firing creates sound voices after enabling audio');
-  await page.screenshot({path:'artifacts/combat.png'});
   await page.getByRole('button',{name:'Rollback lab',exact:true}).click();
   await page.getByRole('button',{name:'Run 15-second scenario',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('#lab-status').textContent.includes('Converged'));
