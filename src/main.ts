@@ -15,9 +15,6 @@ let computerButtons=0;
 let correction=0;
 let state=new Int32Array(2096),buttons=[0,0],mode=1,snapCamera=true;
 const held=new Set<string>();
-const guide=document.querySelector<HTMLDialogElement>('#guide-panel')!;
-document.querySelector('#guide-open')!.addEventListener('click',()=>{held.clear();input();guide.showModal();});
-guide.onclose=()=>{held.clear();input();};
 const controls=new Controls(()=>{held.clear();input();});
 const effects=new Effects(()=>({sound:controls.sound&&!document.hidden,particles:!controls.reducedMotion}));
 for(const name of ['pointerdown','keydown','change'])window.addEventListener(name,()=>effects.unlock());
@@ -30,7 +27,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(button=>butt
   held.clear();input();snapCamera=true;worker.postMessage({type:'mode',mode});
 });
 document.querySelector('#rematch')!.addEventListener('click',reset);
-window.addEventListener('keydown',e=>{if(controls.open||guide.open||labActive||e.target instanceof HTMLInputElement||e.target instanceof HTMLSelectElement)return;if(controls.lookup(e.code)){e.preventDefault();held.add(e.code);input();}if(controls.restart(e.code)&&!e.repeat){e.preventDefault();reset();}});
+window.addEventListener('keydown',e=>{if(controls.open||labActive||e.target instanceof HTMLInputElement||e.target instanceof HTMLSelectElement)return;if(controls.lookup(e.code)){e.preventDefault();held.add(e.code);input();}if(controls.restart(e.code)&&!e.repeat){e.preventDefault();reset();}});
 window.addEventListener('keyup',e=>{held.delete(e.code);input();});
 window.addEventListener('blur',()=>{held.clear();input();});
 document.addEventListener('visibilitychange',()=>{effects.unlock();held.clear();input();worker.postMessage({type:'pause',paused:document.hidden||labActive||mode===3});});

@@ -13,5 +13,3 @@ nav{pointer-events:auto;display:flex;gap:8px;margin-top:24px}button{cursor:point
 nav{flex-wrap:wrap}#controls-panel{background:#0e1d27;color:#cee7e5;border:1px solid #42616b;border-radius:8px;padding:24px;width:470px;max-width:90vw;max-height:90vh}#controls-panel::backdrop{background:#000a}#controls-panel h2{margin-top:0}#controls-panel p{line-height:1.6}#controls-panel fieldset{border:1px solid #334a51;margin:16px 0;padding:12px}#controls-panel legend{font-size:14px}#controls-panel div{display:flex;justify-content:space-between;align-items:center;margin:6px 0;gap:20px;font-size:13px}#controls-panel output{display:block;min-height:40px;font-size:12px;color:#91e9d0;margin:12px 0}#controls-panel>button{margin-right:10px}
 
 #controls-panel>label{display:block;font-size:13px;margin:12px 0}
-
-#guide-panel{width:560px;max-width:90vw;max-height:90vh;overflow:auto;background:#0e1d27;color:#cee7e5;border:1px solid #42616b;border-radius:8px;padding:26px}#guide-panel::backdrop{background:#000a}#guide-panel h2{margin-top:0}#guide-panel p,#guide-panel li{font-size:14px;line-height:1.7}#guide-panel li{margin:12px 0}#guide-panel h3{font-size:16px;margin-top:22px}
