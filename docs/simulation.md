@@ -39,7 +39,7 @@ All fields are little-endian i32. Header: tick at 0, winner at 4 (-1/0/1), cave 
 | 32 | grounded flag |
 | 36 | weapon cooldown ticks |
 | 40 | respawn ticks remaining |
-| 44 | score; cave crashes deduct one |
+| 44 | score; crashes deduct one |
 | 48 | spawn protection ticks |
 | 52–63 | reserved, zero |
 
@@ -55,7 +55,7 @@ Semi-implicit Euler updates velocity before position and spin before angle. Two 
 
 Cave geometry uses axis-aligned rectangular solid polygons quantized to integer world units. Grid queries OR candidate bitsets across the swept circle's bounding box, then visit solids by ascending ID. Swept collision checks offset faces and rounded corners. TOI is an integer fraction in [0, 65536]; 65537 denotes no hit. Face division truncates, and corner searches return the first intersecting quantized time. Contact positions can differ from the mathematical continuous surface by at most a substep's displacement divided by 65536 plus fixed-point rounding; landing permits 64 Q16 integer units of surface error (less than 0.001 world unit). Circle corner bounding checks occur before multiplying the closest-point numerator, preserving i64 bounds at the capped displacement.
 
-Ship radius is 16 world units. Landing requires downward travel from above, the full circle footprint in the player's own pad, and all four tuning thresholds. Grounding zeros velocity, spin and orientation. Refueling runs per substep only while grounded; thrust launches and consumes fuel. Other terrain contact stops movement and records a pending crash. All damage and crashes are resolved after both physics substeps, preserving projectile trades. A same-tick terrain crash takes precedence over projectile death for cause/scoring, deducts one point, and starts a 120-tick respawn timer. Ships pass through each other.
+Ship radius is 16 world units. Landing requires downward travel from above, the full circle footprint in the player's own pad, and all four tuning thresholds. Grounding zeros velocity, spin and orientation. Refueling runs per substep only while grounded; thrust launches and consumes fuel. Other terrain contact stops movement and records a pending crash. All damage and crashes are resolved after both physics substeps, preserving projectile trades. A same-tick terrain crash takes precedence over projectile death for cause/scoring, deducts one point, and starts a 120-tick respawn timer. Ship-to-ship contact sweeps both radius-16 hulls using relative motion in each substep. Both ships stop at contact and crash, each losing one point and emitting an explosion, even during spawn protection. Dead ships do not collide.
 
 Projectiles inherit ship velocity plus the configured muzzle speed, run at constant velocity, and sweep against terrain and moving enemy ship circles. Terrain wins equal contact times. Three hits kill; all pending hits are collected before deaths. Firing or leaving the pad ends spawn protection; otherwise it expires after 90 ticks. Winning requires at least five points and a lead; gameplay freezes on a winner.
 

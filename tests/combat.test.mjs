@@ -6,6 +6,36 @@ const Q=65536;
 async function create(map=0){const {instance}=await WebAssembly.instantiate(binary);const s=instance.exports;s.init(1024,map,0);return {s,st:new Int32Array(s.memory.buffer,4096,2096),pool:new Int32Array(s.memory.buffer,4288,2048)};}
 function step(s,a=0,b=0,n=1){new Uint8Array(s.memory.buffer,2048,2).set([a,b]);for(let i=0;i<n;i++)s.step(2048,1);}
 function arena(st){for(let p=0;p<2;p++){const o=16+p*16;st[o]=p?60*Q:-60*Q;st[o+1]=0;st[o+2]=0;st[o+3]=0;st[o+4]=p?3072:1024;st[o+5]=0;st[o+7]=3;st[o+8]=0;st[o+9]=0;st[o+10]=0;st[o+12]=0;}}
+test('head-on contact explodes both ships once and respawns both after two seconds',async()=>{
+  const {s,st}=await create();arena(st);st[16]=-40*Q;st[32]=40*Q;st[18]=64*Q;st[34]=-64*Q;
+  s.save_state(65536);step(s);s.write_frame(81920);
+  const first=new Int32Array(s.memory.buffer.slice(81920,81920+2097*4+64));
+  assert.equal(st[23],0);assert.equal(st[39],0);
+  assert.equal(st[26],120);assert.equal(st[42],120);
+  assert.equal(st[27],-1);assert.equal(st[43],-1);
+  assert.ok(Math.abs((st[32]-st[16])/Q-32)<.002);
+  assert.equal(first[2096],2);assert.equal(first[2100],5);assert.equal(first[2108],5);
+  assert.equal(st[18],0);assert.equal(st[34],0);
+  const hash=s.state_hash();assert.equal(s.load_state(65536,8384),1);step(s);s.write_frame(81920);
+  assert.equal(s.state_hash(),hash);assert.deepEqual(new Int32Array(s.memory.buffer.slice(81920,81920+first.byteLength)),first);
+  step(s,0,0,119);assert.equal(st[23],0);assert.equal(st[39],0);
+  step(s);assert.equal(st[23],3);assert.equal(st[39],3);
+});
+test('overlapping protected hulls still both explode',async()=>{
+  const {s,st}=await create();arena(st);st[16]=0;st[32]=31*Q;st[28]=90;st[44]=90;
+  step(s);assert.equal(st[23],0);assert.equal(st[39],0);
+});
+test('swept hull contact catches a glancing crossing when substep endpoints miss',async()=>{
+  const {s,st}=await create();arena(st);st[16]=-20*Q;st[32]=20*Q;st[33]=31*Q;st[18]=64*Q;st[34]=-64*Q;
+  step(s);assert.equal(st[23],0);assert.equal(st[39],0);
+});
+test('fast near misses and dead hulls do not cause ship crashes',async()=>{
+  for(const dead of [false,true]){
+    const {s,st}=await create();arena(st);st[16]=-40*Q;st[32]=40*Q;st[18]=64*Q;st[34]=-64*Q;
+    if(dead){st[39]=0;st[42]=120;}else st[33]=33*Q;
+    step(s);assert.equal(st[23],3);assert.equal(st[27],0);assert.equal(st[39],dead?0:3);
+  }
+});
 test('muzzle velocity inherits both ship velocity components',async()=>{const {s,st,pool}=await create();arena(st);st[18]=2*Q;st[19]=3*Q;step(s,8);assert.equal(pool[2],14*Q);assert.equal(pool[3],3*Q);assert.equal(st[25],8);assert.equal(pool[4],119);});
 test('held fire respects cooldown and finite projectile lifetime',async()=>{const {s,st,pool}=await create();st[20]=0;step(s,8);const id=st[3];step(s,8,0,7);assert.equal(st[3],id);step(s,8);assert.equal(st[3],id+1);step(s,0,0,120);assert.ok([...pool].every(v=>v===0));});
 test('three hits kill, grant one point, and preserve simultaneous trades',async()=>{const {s,st}=await create();arena(st);step(s,8,8,24);assert.equal(st[23],0);assert.equal(st[39],0);assert.equal(st[27],1);assert.equal(st[43],1);assert.ok(st[26]>0 && st[42]>0);});

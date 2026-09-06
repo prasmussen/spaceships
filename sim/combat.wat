@@ -26,6 +26,34 @@
   (func $capture_positions
     (memory.copy (i32.const 40016) (i32.const 4160) (i32.const 8))
     (memory.copy (i32.const 40024) (i32.const 4224) (i32.const 8)))
+  ;; Sweep the relative motion of two radius-16 hulls, including fast crossings.
+  ;; Contact is a crash for both, regardless of hull or projectile spawn protection.
+  (func $ship_contact
+    (local $t i32) (local $player i32) (local $p i32) (local $old i32)
+    (if (i32.or (i32.eqz (i32.load (i32.const 4188))) (i32.eqz (i32.load (i32.const 4252)))) (then (return)))
+    (if (i32.and (i32.load (i32.const 40008)) (i32.load (i32.const 40012))) (then (return)))
+    (local.set $t (call $circle_toi
+      (i32.sub (i32.load (i32.const 40016)) (i32.load (i32.const 40024)))
+      (i32.sub (i32.load (i32.const 40020)) (i32.load (i32.const 40028)))
+      (i32.sub (i32.sub (i32.load (i32.const 4160)) (i32.load (i32.const 40016)))
+        (i32.sub (i32.load (i32.const 4224)) (i32.load (i32.const 40024))))
+      (i32.sub (i32.sub (i32.load (i32.const 4164)) (i32.load (i32.const 40020)))
+        (i32.sub (i32.load (i32.const 4228)) (i32.load (i32.const 40028))))
+      (i32.const 0) (i32.const 0) (i32.const 2097152)))
+    (if (i32.gt_s (local.get $t) (i32.const 65536)) (then (return)))
+    (loop $ships
+      (local.set $p (i32.add (i32.const 4160) (i32.mul (local.get $player) (i32.const 64))))
+      (local.set $old (i32.add (i32.const 40016) (i32.mul (local.get $player) (i32.const 8))))
+      (i32.store (local.get $p) (i32.add (i32.load (local.get $old))
+        (call $mul (i32.sub (i32.load (local.get $p)) (i32.load (local.get $old))) (local.get $t))))
+      (i32.store offset=4 (local.get $p) (i32.add (i32.load offset=4 (local.get $old))
+        (call $mul (i32.sub (i32.load offset=4 (local.get $p)) (i32.load offset=4 (local.get $old))) (local.get $t))))
+      (i32.store offset=8 (local.get $p) (i32.const 0))
+      (i32.store offset=12 (local.get $p) (i32.const 0))
+      (i32.store offset=20 (local.get $p) (i32.const 0))
+      (i32.store (i32.add (i32.const 40008) (i32.mul (local.get $player) (i32.const 4))) (i32.const 1))
+      (local.set $player (i32.add (local.get $player) (i32.const 1)))
+      (br_if $ships (i32.lt_u (local.get $player) (i32.const 2)))))
   (func $projectiles
     (local $slot i32) (local $x i32) (local $y i32) (local $dx i32) (local $dy i32)
     (local $terrain i32) (local $hit i32) (local $target i32) (local $old i32) (local $player i32)
