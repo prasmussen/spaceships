@@ -11,6 +11,7 @@ let labActive=false;
 let online:OnlineLobby|undefined;
 let localSlot=0;
 let onlineButtons=[0,0];
+let computerButtons=0;
 let correction=0;
 let state=new Int32Array(2096),buttons=[0,0],mode=1,snapCamera=true;
 const held=new Set<string>();
@@ -37,12 +38,12 @@ function hud(player:number){const o=16+player*16;return `<span>FUEL <strong>${Ma
 worker.onmessage=({data})=>{
   if(data.type==='frame'){
     if(labActive||mode===3)return;
-    state=new Int32Array(data.buffer);effects.consume(state);status.innerHTML=hud(0);
+    computerButtons=data.computerButtons;state=new Int32Array(data.buffer);effects.consume(state);status.innerHTML=hud(0)+(mode===0?'<small>COMPUTER · PATROL & BURST FIRE</small>':'');
     result.hidden=state[1]<0;
     if(state[1]>=0)document.querySelector('#winner')!.textContent=`Player ${state[1]+1} wins · ${state[27]} : ${state[43]}`;
   }else if(data.type==='error')status.textContent=data.message;
 };
-render(canvas,effects,()=>({state,buttons:mode===3?onlineButtons:buttons,localSlot,correction:mode===3?correction:0,reducedMotion:controls.reducedMotion,snap:snapCamera,didSnap:()=>{snapCamera=false;}})).catch(error=>{
+render(canvas,effects,()=>({state,buttons:mode===3?onlineButtons:[buttons[0],labActive?0:computerButtons],localSlot,correction:mode===3?correction:0,reducedMotion:controls.reducedMotion,snap:snapCamera,didSnap:()=>{snapCamera=false;}})).catch(error=>{
   worker.terminate();status.textContent=String(error);document.body.classList.add('unavailable');
 });
 

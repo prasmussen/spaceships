@@ -25,6 +25,15 @@ try {
   page.on('pageerror', error=>errors.push(String(error)));
   page.on('console', message=>{if(message.type()==='error')errors.push(message.text());});
   await page.addInitScript(()=>{
+    const NativeWorker=window.Worker;
+    window.Worker=class extends NativeWorker{
+      constructor(url,options){
+        super(url,options);
+        if(String(url).includes('/src/worker.ts'))this.addEventListener('message',({data})=>{
+          if(data.type==='frame')window.testPracticeFrame={state:Array.from(new Int32Array(data.buffer)),computerButtons:data.computerButtons};
+        });
+      }
+    };
     if(!sessionStorage.getItem('controls-migration-seeded')){
       localStorage.setItem('cavern-controls',JSON.stringify(['KeyW','KeyA','KeyD','Space','ArrowUp','ArrowLeft','ArrowRight','Enter','KeyT']));
       sessionStorage.setItem('controls-migration-seeded','true');
@@ -66,6 +75,8 @@ try {
   await page.getByLabel('Sound effects',{exact:true}).check();
   await page.getByRole('button',{name:'Done',exact:true}).click();
   await page.getByRole('button',{name:'Flight lab',exact:true}).click();
+  await page.waitForFunction(()=>window.testPracticeFrame?.state[2]===2&&window.testPracticeFrame.state[33]<1680*65536);
+  assert.match(await page.locator('#status').textContent(),/COMPUTER/);
   await page.waitForTimeout(100);
   await page.keyboard.down('w');
   await page.keyboard.down('d');
@@ -82,6 +93,8 @@ try {
   assert.equal(await page.locator('#status strong').nth(0).textContent(),'100%');
   await page.getByRole('button',{name:'Landing course',exact:true}).click();
   await page.waitForTimeout(150);
+  assert.equal(await page.evaluate(()=>window.testPracticeFrame.computerButtons),0);
+  assert.equal(await page.evaluate(()=>window.testPracticeFrame.state[40]),1);
   assert.match(await page.locator('#status').textContent(),/ON PAD/);
   await page.keyboard.down('w');await page.waitForTimeout(400);await page.keyboard.up('w');
   assert.match(await page.locator('#status').textContent(),/IN FLIGHT/);
@@ -104,16 +117,16 @@ try {
   await page.waitForFunction(()=>document.querySelector('#lab-status').textContent.includes('Replay validated'));
   await page.screenshot({path:'artifacts/rollback.png'});
   await page.getByRole('button',{name:'Close laboratory',exact:true}).click();
-  const tickBeforeLoss=await page.locator('#status small').textContent();
+  const tickBeforeLoss=await page.evaluate(()=>window.testPracticeFrame.state[0]);
   await page.evaluate(()=>window.testGPUDevices.at(-1).destroy());
   await page.waitForFunction(()=>document.querySelector('canvas').dataset.graphicsGeneration==='2');
   await page.waitForTimeout(100);
-  assert.notEqual(await page.locator('#status small').textContent(),tickBeforeLoss,'simulation continues during graphics recovery');
+  assert.ok(await page.evaluate(()=>window.testPracticeFrame.state[0])>tickBeforeLoss,'simulation continues during graphics recovery');
   await page.evaluate(()=>{window.testGPUUnavailable=true;window.testGPUDevices.at(-1).destroy();});
   await page.getByRole('button',{name:'Retry graphics',exact:true}).waitFor({state:'visible'});
-  const tickWhileUnavailable=await page.locator('#status small').textContent();
+  const tickWhileUnavailable=await page.evaluate(()=>window.testPracticeFrame.state[0]);
   await page.waitForTimeout(100);
-  assert.notEqual(await page.locator('#status small').textContent(),tickWhileUnavailable);
+  assert.ok(await page.evaluate(()=>window.testPracticeFrame.state[0])>tickWhileUnavailable);
   await page.evaluate(()=>{window.testGPUUnavailable=false;});
   await page.getByRole('button',{name:'Retry graphics',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('canvas').dataset.graphicsGeneration==='3');
