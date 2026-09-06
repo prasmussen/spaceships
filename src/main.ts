@@ -33,7 +33,7 @@ window.addEventListener('keydown',e=>{if(controls.open||guide.open||labActive||e
 window.addEventListener('keyup',e=>{held.delete(e.code);input();});
 window.addEventListener('blur',()=>{held.clear();input();});
 document.addEventListener('visibilitychange',()=>{effects.unlock();held.clear();input();worker.postMessage({type:'pause',paused:document.hidden||labActive||mode===3});});
-function hud(player:number){const o=16+player*16;return `<span>FUEL <strong>${Math.ceil(state[o+6]/60)}%</strong></span><span>SPEED <strong>${(Math.hypot(state[o+2],state[o+3])/65536*60).toFixed(0)}</strong></span><span>SPIN <strong>${state[o+5]}</strong></span><span>HULL <strong>${state[o+7]} / 3</strong></span><span>SCORE <strong>${state[o+11]}</strong></span><small>TICK ${state[0]} · ${state[o+7]===0?'RESPAWNING':state[o+8]?'ON PAD · REFUELING':'IN FLIGHT'} · FIRST TO 5</small>`;}
+function hud(player:number){const o=16+player*16;return `<span>FUEL <strong>${Math.ceil(state[o+6]/60)}%</strong></span><span>SPEED <strong>${(Math.hypot(state[o+2],state[o+3])/65536*60).toFixed(0)}</strong></span><span>SPIN <strong>${state[o+5]}</strong></span><span>HULL <strong>${state[o+7]} / 3</strong></span><span>SCORE <strong>${state[o+11]}</strong></span><small>${state[o+7]===0?'RESPAWNING':state[o+8]?'ON PAD · REFUELING':'IN FLIGHT'} · FIRST TO 5</small>`;}
 worker.onmessage=({data})=>{
   if(data.type==='frame'){
     if(labActive||mode===3)return;

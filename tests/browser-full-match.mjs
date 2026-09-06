@@ -19,7 +19,7 @@ export async function checkFullMatch(browser,base,relay){
           }
         };
       },inputs);
-      const page=await context.newPage();pages.push(page);await page.goto(base);await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('TICK'));
+      const page=await context.newPage();pages.push(page);await page.goto(base);await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('FUEL'));
       await page.getByRole('button',{name:'Online duel',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('#queue-join').disabled);
       if(relay)await page.locator('#force-relay').check();
     }

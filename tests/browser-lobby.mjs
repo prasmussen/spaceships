@@ -55,7 +55,7 @@ export async function checkLobby(browser,turn){
       const context=await browser.newContext();contexts.push(context);const page=await context.newPage();gamePages.push(page);await page.goto(base);
       await page.evaluate(()=>{window.lobbyConnections=0;const WS=window.WebSocket;window.WebSocket=class extends WS{constructor(...args){super(...args);window.activeLobbySocket=this;window.lobbyConnections++;}};});
       if(turn)await page.evaluate(()=>{window.relayPCs=[];const PC=window.RTCPeerConnection;window.RTCPeerConnection=class extends PC{constructor(...args){super(...args);window.relayPCs.push(this);this.addEventListener('icecandidateerror',e=>{window.relayICEError={code:e.errorCode,text:e.errorText,url:e.url}});}};});
-      await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('TICK'));
+      await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('FUEL'));
       await page.getByRole('button',{name:'Online duel',exact:true}).click();
       await page.waitForFunction(()=>!document.querySelector('#invite-create').disabled);
       if(turn)await page.locator('#force-relay').check();

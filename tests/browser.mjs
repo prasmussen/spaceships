@@ -42,7 +42,7 @@ try {
     };
   });
   await page.goto(base);
-  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('TICK'));
+  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('FUEL'));
   await page.waitForTimeout(500);
   assert.equal(await page.locator('body').evaluate(e=>e.classList.contains('unavailable')),false);
   await page.getByRole('button',{name:'Controls',exact:true}).click();

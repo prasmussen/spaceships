@@ -21,7 +21,7 @@ export async function checkDeployment(browser){
       const deadline=Date.now()+20000;
       while(true){try{await page.goto(values.PUBLIC_ORIGIN);if(await page.locator('#status').count())break;}catch{}if(Date.now()>deadline)throw Error('HTTPS deployment did not become ready');await new Promise(resolve=>setTimeout(resolve,200));}
       assert.equal(await page.evaluate(()=>window.isSecureContext),true);
-      await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('TICK'));
+      await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('FUEL'));
       await page.getByRole('button',{name:'Online duel',exact:true}).click();
       await page.waitForFunction(()=>!document.querySelector('#queue-join').disabled);
       const cookies=await context.cookies();assert.ok(cookies.some(c=>c.name==='cavern_guest'&&c.secure&&c.httpOnly&&c.sameSite==='Strict'));
