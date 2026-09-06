@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 const binary=await readFile('public/simulation.wasm');
 const Q=65536;
+const tuning=JSON.parse(await readFile('sim/tuning.json','utf8'));
 async function create(){const {instance}=await WebAssembly.instantiate(binary);const s=instance.exports;assert.equal(s.init(1024,32768,0,2),1);return {s,st:new Int32Array(s.memory.buffer,4096,48)};}
 function step(s,a=0,n=1){new Uint8Array(s.memory.buffer,2048,2).set([a,0]);for(let i=0;i<n;i++)s.step(2048,1);}
 function approach(st){st[16]=450*Q;st[17]=1684*Q-1;st[18]=0;st[19]=30000;st[20]=0;st[21]=0;st[22]=3000;st[24]=0;}
 test('grounded ships refuel, suppress rotation, and launch with thrust',async()=>{const {s,st}=await create();assert.equal(st[24],1);st[22]=3000;const y=st[17];step(s,4,10);assert.equal(st[21],0);assert.equal(st[17],y);assert.equal(st[22],3060);step(s,1);assert.equal(st[24],0);assert.ok(st[17]<y);assert.equal(st[22],3058);});
-for(const [name,index,limit]of [['horizontal speed',18,52428],['vertical speed',19,91750],['orientation',20,114],['spin',21,8]]) {
+for(const [name,index,limit]of [['horizontal speed',18,tuning.landingMaxVx],['vertical speed',19,tuning.landingMaxVy],['orientation',20,tuning.landingMaxAngle],['spin',21,tuning.landingMaxSpin]]) {
   for(const delta of [-1,0,1])test(`landing ${name} at limit ${delta>=0?'+':''}${delta}`,async()=>{
     const {s,st}=await create();approach(st);st[index]=limit+delta-(index===19?1800:0)+(index===21?8:0);if(index===18||index===19)st[index]+=Math.trunc(st[index]/511);step(s);
     assert.equal(st[23],delta<=0?3:0);assert.equal(st[24],delta<=0?1:0);assert.equal(st[27],delta<=0?0:-1);
@@ -41,7 +42,7 @@ test('starting pad assignment varies with seed, stays distinct, and reproduces e
 });
 test('maximum-speed flight hits the pillar before entering solid terrain',async()=>{const {s,st}=await create();approach(st);st[16]=1420*Q;st[17]=1000*Q;st[18]=64*Q;step(s);assert.equal(st[23],0);assert.ok(st[16]<=1434*Q);assert.equal(st[27],-1);});
 test('cave snapshots restore grounded and respawn futures exactly',async()=>{const {s,st}=await create();approach(st);st[20]=2048;step(s);s.save_state(65536);const before=s.state_hash();step(s,0,121);const after=s.state_hash();assert.equal(s.load_state(65536,8512),1);assert.equal(s.state_hash(),before);step(s,0,121);assert.equal(s.state_hash(),after);});
-for(const [name,index,limit]of [['leftward speed',18,52428],['counterclockwise spin',21,8],['wrapped orientation',20,114]]) {
+for(const [name,index,limit]of [['leftward speed',18,tuning.landingMaxVx],['counterclockwise spin',21,tuning.landingMaxSpin],['wrapped orientation',20,tuning.landingMaxAngle]]) {
   for(const delta of [-1,0,1])test(`landing ${name} magnitude limit ${delta}`,async()=>{
     const {s,st}=await create();approach(st);st[index]=index===20?4096-(limit+delta):-(limit+delta+(index===21?8:0));if(index===18)st[index]+=Math.trunc(st[index]/511);step(s);assert.equal(st[23],delta<=0?3:0);
   });
