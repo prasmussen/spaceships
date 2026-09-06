@@ -89,7 +89,7 @@ try {
   assert.equal(await page.getByRole('button',{name:'Local duel',exact:true}).count(),0);
   await page.keyboard.press('r');
   await page.keyboard.down('ArrowUp');await page.waitForTimeout(150);await page.keyboard.up('ArrowUp');
-  assert.match(await page.locator('#status').textContent(),/ON PAD/);
+  assert.match(await page.locator('#status').textContent(),/IN FLIGHT/);
   await page.keyboard.down('Space');await page.waitForTimeout(300);await page.keyboard.up('Space');
   assert.ok(await page.evaluate(()=>window.testSounds)>0,'firing creates sound voices after enabling audio');
   await page.getByRole('button',{name:'Rollback lab',exact:true}).click();

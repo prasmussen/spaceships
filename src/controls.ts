@@ -1,4 +1,5 @@
 const defaults=['KeyW','KeyA','KeyD','Space','KeyR'];
+const arrows=['ArrowUp','ArrowLeft','ArrowRight'];
 const actions=['Thrust','Rotate left','Rotate right','Fire'];
 const supported=/^(Key[A-Z]|Digit[0-9]|Arrow(Up|Down|Left|Right)|Space|Enter|ShiftLeft|ShiftRight)$/;
 function label(code:string){return code.replace(/^Key|^Digit/,'').replace('Arrow','').replace('ShiftLeft','Left Shift').replace('ShiftRight','Right Shift');}
@@ -16,7 +17,7 @@ export class Controls {
     try{this.sound=localStorage.getItem('cavern-sound')==='true';}catch{}
     this.dialog.id='controls-panel';this.dialog.setAttribute('aria-labelledby','controls-title');
     const title=document.createElement('h2');title.id='controls-title';title.textContent='Controls';
-    const intro=document.createElement('p');intro.textContent='Select an action, then press a key. Escape cancels. Each action needs a different key. These controls apply to your ship in practice and online matches.';
+    const intro=document.createElement('p');intro.textContent='Select an action, then press a key. Escape cancels. Each action needs a different key. Up also thrusts; Left and Right also rotate, unless assigned to another action. These controls apply to your ship in practice and online matches.';
     this.dialog.append(title,intro);
     const group=document.createElement('fieldset'),legend=document.createElement('legend');legend.textContent='Your ship';group.append(legend);
     for(let a=0;a<4;a++)group.append(this.binding(a,actions[a],actions[a]));
@@ -45,7 +46,11 @@ export class Controls {
     this.refresh();
   }
   get open(){return this.dialog.open;}
-  lookup(code:string):number {const i=this.codes.indexOf(code);return i>=0&&i<4?1<<i:0;}
+  lookup(code:string):number {
+    const i=this.codes.indexOf(code);
+    if(i>=0)return i<4?1<<i:0;
+    const arrow=arrows.indexOf(code);return arrow>=0?1<<arrow:0;
+  }
   restart(code:string){return code===this.codes[4];}
   private binding(index:number,name:string,text:string){
     const row=document.createElement('div'),caption=document.createElement('span'),button=document.createElement('button');caption.textContent=text;
@@ -57,7 +62,10 @@ export class Controls {
     this.buttons.forEach((button,i)=>{button.textContent=this.pending===i?'Press a key…':label(this.codes[i]);button.setAttribute('aria-pressed',String(this.pending===i));});
     const footer=document.querySelector('footer')!;
     footer.replaceChildren();
-    const line=document.createElement('span');line.textContent=actions.map((action,i)=>`${label(this.codes[i])} ${action.toLowerCase()}`).join(' · ');footer.append(line);
+    const line=document.createElement('span');line.textContent=actions.map((action,i)=>{
+      const alias=arrows[i],keys=alias&&!this.codes.includes(alias)?`${label(this.codes[i])} / ${label(alias)}`:label(this.codes[i]);
+      return `${keys} ${action.toLowerCase()}`;
+    }).join(' · ');footer.append(line);
     const restart=document.createElement('p');restart.textContent=`${label(this.codes[4])} restart / rematch · Land upright and slowly on your illuminated pad to refuel.`;footer.append(restart);
   }
 }
