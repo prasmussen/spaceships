@@ -1,8 +1,46 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {FlightInterpolation,FragmentInterpolation,PositionCorrection} from '../src/presentation.ts';
+import {FlightInterpolation,FragmentInterpolation,PositionCorrection,projectilePose} from '../src/presentation.ts';
 function frame(x,y=100){const state=new Int32Array(2096);state[16]=x*65536;state[17]=y*65536;state[18]=65536;state[23]=3;return state;}
 function moving(tick){const state=frame(100+tick);state[0]=tick;return state;}
+test('moving shots stay centered on the nose on the ship render clock',()=>{
+  for(const angle of [0,1024,2048,3072]){
+    const motion=new FlightInterpolation(),radians=angle*Math.PI/2048;
+    const dx=Math.round(Math.sin(radians)),dy=-Math.round(Math.cos(radians));
+    let tick=0;
+    const make=t=>{
+      const state=moving(t);state[16]=(100+t*8)*65536;state[17]=(100+t*3)*65536;
+      state[18]=8*65536;state[19]=3*65536;state[20]=angle;
+      if(t>10){const age=t-10;state.set([(180+20*dx+(8+12*dx)*age)*65536,(130+20*dy+(3+12*dy)*age)*65536,
+        (8+12*dx)*65536,(3+12*dy)*65536,120-age,0,1,0],48);}
+      return state;
+    };
+    let state=make(0),visible=0;
+    for(let render=0;render<100;render++){
+      const now=render*1000/144;
+      while((tick+1)*1000/60+((tick+1)%3)*3<=now)state=make(++tick);
+      const ship=motion.sample(state,0,now),copy=state.slice(),shot=projectilePose(state,0,ship.tick);
+      assert.equal(shot.visible,ship.tick>=10&&tick>10);
+      if(shot.visible){
+        visible++;
+        const distance=20+12*(ship.tick-10);
+        assert.ok(Math.abs(shot.x-ship.x-dx*distance)<1e-9);
+        assert.ok(Math.abs(shot.y-ship.y-dy*distance)<1e-9);
+      }
+      assert.deepEqual(state,copy);
+    }
+    assert.ok(visible>0);
+  }
+});
+test('shot rewind respects half-step rounding, expiry, debris and resets',()=>{
+  const state=moving(20);state.set([1000,2000,101,-103,119,0,1,0],48);
+  assert.equal(projectilePose(state,0,19).x,900/65536);
+  assert.equal(projectilePose(state,0,19).y,2102/65536);
+  assert.equal(projectilePose(state,0,18).visible,false);
+  assert.equal(projectilePose(state,0,20).x,1000/65536);
+  state[55]=0x10000000;assert.equal(projectilePose(state,0,20).visible,false);
+  state[55]=0;state[52]=0;assert.equal(projectilePose(state,0,20).visible,false);
+});
 function debris(tick,x=tick,id=1,angle=tick*20){
   const state=moving(tick);state.set([x*65536,100*65536,65536,0,186-tick,0,id,0x10000000|(angle<<5)],48);return state;
 }

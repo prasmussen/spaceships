@@ -25,7 +25,7 @@ export class Effects {
     if(this.master)this.master.gain.value=settings.sound ? .12 : 0;
     for(const event of this.deduper.consume(frame)){
       if(event.type===8)continue; // Winner UI comes from confirmed state.
-      const explosion=event.type===4||event.type===5,count=explosion?0:event.type===1?5:8;
+      const explosion=event.type===4||event.type===5,count=explosion||event.type===1?0:8;
       if(settings.particles){
 
         for(let i=0;i<count;i++){

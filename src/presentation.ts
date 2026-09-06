@@ -67,8 +67,19 @@ export class FlightInterpolation {
     const lerp=(a:number,b:number)=>a+(b-a)*alpha;
     // Angles wrap at 4096; interpolate across the shortest arc.
     const turn=((b.angle-a.angle+6144)%4096)-2048;
-    return {x:lerp(a.x,b.x),y:lerp(a.y,b.y),angle:(a.angle+turn*alpha)*Math.PI/2048,vx:lerp(a.vx,b.vx),vy:lerp(a.vy,b.vy)};
+    return {tick:lerp(a.tick,b.tick),x:lerp(a.x,b.x),y:lerp(a.y,b.y),angle:(a.angle+turn*alpha)*Math.PI/2048,vx:lerp(a.vx,b.vx),vy:lerp(a.vy,b.vy)};
   }
+}
+
+/** Shots move at constant velocity. Rewind to the firing ship's render time,
+ * including WASM's truncated half-steps, and hide shots not yet born then. */
+export function projectilePose(state:Int32Array,index:number,tick:number,lifetime=120){
+  const o=48+index*8,delay=Math.max(0,state[0]-tick);
+  return {
+    x:(state[o]-Math.trunc(state[o+2]/2)*2*delay)/65536,
+    y:(state[o+1]-Math.trunc(state[o+3]/2)*2*delay)/65536,
+    visible:state[o+4]>0&&state[o+7]===0&&delay<=lifetime-state[o+4],
+  };
 }
 
 /** Cosmetic correction offsets only. Never writes simulation state. */

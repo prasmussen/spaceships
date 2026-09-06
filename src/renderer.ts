@@ -1,6 +1,7 @@
 import cave from '../sim/cave.json';
 import shader from './scene.wgsl?raw';
-import {FlightInterpolation,PositionCorrection} from './presentation';
+import {FlightInterpolation,PositionCorrection,projectilePose} from './presentation';
+import tuning from '../sim/tuning.json';
 import {MAX_FRAGMENTS,FRAGMENT_STRIDE,type Effects} from './effects';
 type FrameSource=()=>{state:Int32Array;buttons:number[];localSlot?:number;correction?:number;reducedMotion?:boolean;snap:boolean;didSnap:()=>void};
 export async function render(canvas:HTMLCanvasElement,effects:Effects,get:FrameSource){
@@ -57,6 +58,7 @@ async function createRenderer(canvas:HTMLCanvasElement,effects:Effects,get:Frame
   const shipData=new Float32Array(16),bulletData=new Float32Array(3072);
   const corrections=[new PositionCorrection(),new PositionCorrection()];
   const flight=[new FlightInterpolation(),new FlightInterpolation()];
+  const shotClocks=[0,0],shotOffsets=[[0,0],[0,0]];
   const thrustPower=[0,0];
   let previous=performance.now();
   if(lost)throw Error('Graphics device was lost during initialization');
@@ -72,6 +74,8 @@ async function createRenderer(canvas:HTMLCanvasElement,effects:Effects,get:Frame
       const visual=corrections[p].sample(state,p,state[0],correction,dt,snap||reducedMotion);
       const motion=flight[p].sample(state,p,now,snap);
       const x=motion.x+visual.x-state[o]/65536,y=motion.y+visual.y-state[o+1]/65536;
+      shotClocks[p]=motion.tick;
+      shotOffsets[p]=[visual.x-state[o]/65536,visual.y-state[o+1]/65536];
       if(p===localSlot){
         if((snap||visual.snap&&!reducedMotion) && state[0]>0){camera[0]=x;camera[1]=y;}
         const damp=1-Math.exp(-dt*5);
@@ -84,7 +88,10 @@ async function createRenderer(canvas:HTMLCanvasElement,effects:Effects,get:Frame
       shipData.set([x,y,motion.angle,state[o+7]>0?1:0,thrustPower[p],state[o+12]>0?1:0,0,0],p*8);
     }
     if(snap&&state[0]>0)didSnap();
-    for(let i=0;i<256;i++){const o=48+i*8;bulletData.set([state[o]/65536,state[o+1]/65536,state[o+5],state[o+4]>0&&!state[o+7]?1:0],i*4);}
+    for(let i=0;i<256;i++){
+      const o=48+i*8,owner=state[o+5],pose=projectilePose(state,i,shotClocks[owner],tuning.projectileLifetime);
+      bulletData.set([pose.x+shotOffsets[owner][0],pose.y+shotOffsets[owner][1],owner,pose.visible?1:0],i*4);
+    }
     const particleCount=effects.write(bulletData,1024,now);
     const fragmentCount=effects.writeFragments(fragmentData,now,state,snap,correction);
     if(fragmentCount)device.queue.writeBuffer(fragments,0,fragmentData,0,fragmentCount*FRAGMENT_STRIDE);
