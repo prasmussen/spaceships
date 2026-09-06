@@ -41,6 +41,7 @@ type Config struct {
 	Now               func() time.Time
 }
 type Match struct {
+	Players      int      `json:"players"`
 	ID           string   `json:"id"`
 	Epoch        uint32   `json:"epoch"`
 	Seed         uint32   `json:"seed"`
@@ -55,6 +56,7 @@ type rate struct {
 	count int
 }
 type client struct {
+	players   int
 	token     string
 	conn      *websocket.Conn
 	send      chan any
@@ -68,22 +70,26 @@ type client struct {
 	messages  int
 }
 type room struct {
-	code    string
-	members [2]*client
-	ready   [2]bool
-	match   *Match
-	region  string
+	code     string
+	members  []*client
+	ready    []bool
+	reported []bool
+	winner   *int
+	match    *Match
+	region   string
 }
 type message struct {
-	Type     string          `json:"type"`
-	Identity Identity        `json:"identity"`
-	Region   string          `json:"region"`
-	Code     string          `json:"code"`
-	Ready    bool            `json:"ready"`
-	MatchID  string          `json:"matchId"`
-	Signal   json.RawMessage `json:"signal"`
-	Winner   *int            `json:"winner"`
-	Metrics  *Metrics        `json:"metrics"`
+	Players   int             `json:"players"`
+	Recipient *int            `json:"recipient"`
+	Type      string          `json:"type"`
+	Identity  Identity        `json:"identity"`
+	Region    string          `json:"region"`
+	Code      string          `json:"code"`
+	Ready     bool            `json:"ready"`
+	MatchID   string          `json:"matchId"`
+	Signal    json.RawMessage `json:"signal"`
+	Winner    *int            `json:"winner"`
+	Metrics   *Metrics        `json:"metrics"`
 }
 type Metrics struct {
 	Connections uint64 `json:"connections"`
@@ -289,6 +295,7 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 	if old := s.clients[key]; old != nil {
 		c.room = old.room
 		c.region = old.region
+		c.players = old.players
 		c.hello = old.hello
 		if old.conn != nil {
 			_ = old.conn.Close()
@@ -397,9 +404,13 @@ func (s *Server) broadcast(r *room, value any) {
 	}
 }
 func (s *Server) roomState(r *room) {
+	present := make([]bool, len(r.members))
+	for i, p := range r.members {
+		present[i] = p != nil
+	}
 	for slot, c := range r.members {
 		if c != nil {
-			s.send(c, map[string]any{"type": "room", "code": r.code, "slot": slot, "ready": r.ready, "present": [2]bool{r.members[0] != nil, r.members[1] != nil}, "region": r.region, "active": r.match != nil})
+			s.send(c, map[string]any{"type": "room", "code": r.code, "slot": slot, "ready": append([]bool(nil), r.ready...), "present": present, "players": len(r.members), "region": r.region, "active": r.match != nil})
 		}
 	}
 }
@@ -411,10 +422,17 @@ func (s *Server) sendMatch(c *client, r *room) {
 	}
 }
 func (s *Server) start(r *room) {
-	if r.members[0] == nil || r.members[1] == nil || !r.ready[0] || !r.ready[1] || r.match != nil {
+	if r.match != nil {
 		return
 	}
-	r.match = &Match{ID: randomID(16), Epoch: random32(), Seed: random32(), Identity: s.cfg.Identity, InputDelay: 2, RecoveryPeer: 0, Region: r.region}
+	for i, p := range r.members {
+		if p == nil || !p.connected || !r.ready[i] {
+			return
+		}
+	}
+	r.reported = make([]bool, len(r.members))
+	r.winner = nil
+	r.match = &Match{Players: len(r.members), ID: randomID(16), Epoch: random32(), Seed: random32(), Identity: s.cfg.Identity, InputDelay: 2, RecoveryPeer: 0, Region: r.region}
 	for _, c := range r.members {
 		s.sendMatch(c, r)
 	}
@@ -445,23 +463,29 @@ func (s *Server) leave(c *client) {
 			r.members[i] = nil
 		}
 	}
-	r.ready = [2]bool{}
-	if r.members[0] == nil && r.members[1] == nil {
+	r.ready = make([]bool, len(r.members))
+	empty := true
+	for _, p := range r.members {
+		if p != nil {
+			empty = false
+		}
+	}
+	if empty {
 		delete(s.rooms, r.code)
 	} else {
 		s.roomState(r)
 	}
 }
-func (s *Server) newRoom(a, b *client) *room {
+func (s *Server) newRoom(members []*client, players int) *room {
 	code := randomID(4)
 	for s.rooms[code] != nil {
 		code = randomID(4)
 	}
-	r := &room{code: code, members: [2]*client{a, b}, region: a.region}
+	r := &room{code: code, members: make([]*client, players), ready: make([]bool, players), region: members[0].region}
+	copy(r.members, members)
 	s.rooms[code] = r
-	a.room = code
-	if b != nil {
-		b.room = code
+	for _, c := range members {
+		c.room = code
 	}
 	return r
 }
@@ -509,6 +533,10 @@ func (s *Server) handle(c *client, m message) {
 	}
 	switch m.Type {
 	case "create":
+		if m.Players < 2 || m.Players > 4 {
+			s.fail(c, "invalid player count")
+			return
+		}
 		if c.room != "" {
 			s.fail(c, "already in room")
 			return
@@ -518,7 +546,7 @@ func (s *Server) handle(c *client, m message) {
 			return
 		}
 		s.unqueue(c)
-		r := s.newRoom(c, nil)
+		r := s.newRoom([]*client{c}, m.Players)
 		s.roomState(r)
 	case "join":
 		r := s.rooms[strings.ToLower(m.Code)]
@@ -540,30 +568,47 @@ func (s *Server) handle(c *client, m message) {
 		s.unqueue(c)
 		r.members[slot] = c
 		c.room = r.code
-		r.ready = [2]bool{}
+		r.ready = make([]bool, len(r.members))
 		s.roomState(r)
 	case "queue":
+		if m.Players < 2 || m.Players > 4 {
+			s.fail(c, "invalid player count")
+			return
+		}
 		if c.room != "" {
 			s.fail(c, "leave room first")
 			return
 		}
 		s.unqueue(c)
+		c.players = m.Players
+		members := []*client{}
 		for _, other := range s.queue {
-			if other.connected && other.hello && other.region == c.region {
-				if len(s.rooms) >= 5000 {
-					s.fail(c, "room capacity reached")
-					return
+			if other.connected && other.hello && other.region == c.region && other.players == c.players {
+				members = append(members, other)
+				if len(members) == m.Players-1 {
+					break
 				}
-				s.unqueue(other)
-				r := s.newRoom(other, c)
-				r.ready = [2]bool{true, true}
-				s.roomState(r)
-				s.start(r)
-				return
 			}
 		}
+		if len(members) == m.Players-1 {
+			if len(s.rooms) >= 5000 {
+				s.fail(c, "room capacity reached")
+				return
+			}
+			for _, other := range members {
+				s.unqueue(other)
+			}
+			members = append(members, c)
+			r := s.newRoom(members, m.Players)
+			for i := range r.ready {
+				r.ready[i] = true
+			}
+			s.roomState(r)
+			s.start(r)
+			return
+		}
 		s.queue = append(s.queue, c)
-		s.send(c, map[string]any{"type": "queued", "region": c.region})
+		s.send(c, map[string]any{"type": "queued", "region": c.region, "players": m.Players})
 	case "cancelQueue":
 		s.unqueue(c)
 		s.send(c, map[string]any{"type": "queueCancelled"})
@@ -585,13 +630,13 @@ func (s *Server) handle(c *client, m message) {
 		s.start(r)
 	case "signal":
 		r := s.rooms[c.room]
-		if r == nil || r.match == nil || r.match.ID != m.MatchID || len(m.Signal) == 0 || len(m.Signal) > 24000 {
+		if r == nil || r.match == nil || r.match.ID != m.MatchID || len(m.Signal) == 0 || len(m.Signal) > 24000 || m.Recipient == nil || *m.Recipient < 0 || *m.Recipient >= len(r.members) || r.members[*m.Recipient] == nil || r.members[*m.Recipient] == c {
 			s.fail(c, "invalid room signal")
 			return
 		}
 		for slot, p := range r.members {
 			if p == c {
-				s.send(r.members[1-slot], map[string]any{"type": "signal", "matchId": m.MatchID, "sender": slot, "signal": m.Signal})
+				s.send(r.members[*m.Recipient], map[string]any{"type": "signal", "matchId": m.MatchID, "sender": slot, "signal": m.Signal})
 			}
 		}
 	case "finish":
@@ -600,13 +645,28 @@ func (s *Server) handle(c *client, m message) {
 			s.fail(c, "unknown match")
 			return
 		}
-		if m.Winner != nil && (*m.Winner < 0 || *m.Winner > 1) {
+		if m.Winner == nil || *m.Winner < 0 || *m.Winner >= len(r.members) {
 			s.fail(c, "invalid winner")
 			return
 		}
+		if r.winner != nil && *r.winner != *m.Winner {
+			s.fail(c, "conflicting winner report")
+			return
+		}
+		r.winner = m.Winner
+		for i, p := range r.members {
+			if p == c {
+				r.reported[i] = true
+			}
+		}
+		for _, reported := range r.reported {
+			if !reported {
+				return
+			}
+		}
 		s.broadcast(r, map[string]any{"type": "ended", "matchId": r.match.ID, "reason": "reported", "winner": m.Winner, "trust": "unverified"})
 		r.match = nil
-		r.ready = [2]bool{}
+		r.ready = make([]bool, len(r.members))
 		s.roomState(r)
 	case "metrics":
 		r := s.rooms[c.room]

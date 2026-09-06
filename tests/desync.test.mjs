@@ -9,8 +9,8 @@ test('forced desync freezes, saves diagnostics, recovers once and aborts on repe
   const peers=[new Rollback(await Engine.create(wasm),0),new Rollback(await Engine.create(wasm),1)];
   for(let t=0;t<90;t++){
     for(let p=0;p<2;p++){peers[p].advance(1);peers[1-p].receive(p,t+2,1);}
-    peers[0].acknowledge(peers[1].complete);peers[1].acknowledge(peers[0].complete);
-    if(t===20)new Int32Array(peers[1].engine.wasm.memory.buffer,4096,2096)[22]-=1;
+    peers[0].acknowledge(peers[1].complete,1);peers[1].acknowledge(peers[0].complete,0);
+    if(t===20)new Int32Array(peers[1].engine.wasm.memory.buffer,4096,2128)[22]-=1;
   }
   assert.notEqual(peers[0].hashAt(59),peers[1].hashAt(59));
   const monitor=new DesyncMonitor(peers[1],identity);

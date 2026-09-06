@@ -30,6 +30,6 @@ TURN_URLS=turn:turn.example.com:3478?transport=udp,turn:turn.example.com:3478?tr
 TURN_SECRET=<same private secret>
 ```
 
-The deployment pins coturn 4.17.2-r0 by image digest. It uses Linux host networking, allocation/bandwidth quotas, no CLI, rotated logs and private-peer address restrictions. Review quotas against expected concurrency. See the [official container guide](https://github.com/coturn/coturn/blob/master/docker/coturn/README.md) and [configuration options](https://github.com/coturn/coturn/blob/master/examples/etc/turnserver.conf).
+The deployment pins coturn 4.17.2-r0 by image digest. It uses Linux host networking, allocation/bandwidth quotas, no CLI, rotated logs and private-peer address restrictions. The per-user allocation quota is 16 to allow three simultaneous opponent links plus candidate gathering and ICE restart overlap. Review total quotas against expected concurrency. See the [official container guide](https://github.com/coturn/coturn/blob/master/docker/coturn/README.md) and [configuration options](https://github.com/coturn/coturn/blob/master/examples/etc/turnserver.conf).
 
 This configuration offers TURN over UDP and TCP. Networks requiring TLS-only egress need an additional TURN TLS listener with a valid certificate and a `turns:` URL; that deployment is not configured here. The game and signaling service also still need their HTTPS/WSS deployment. Local relay evidence does not prove public routing, NAT/firewall behavior, or complete internet matches: run acceptance from separate networks against the deployed service.

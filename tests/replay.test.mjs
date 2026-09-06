@@ -23,3 +23,13 @@ test('interactive laboratory survives the worst selectable conditions',async()=>
   assert.deepEqual(result.hashes,[result.reference,result.reference]);assert.ok(result.metrics.every(m=>m.maxDepth<=12&&m.stalls>0));
   const player=new ReplayPlayer(await Engine.create(wasm),result.replay);assert.equal(await player.validate(),result.reference);
 });
+for(const players of [3,4])test(`${players}-player replays preserve all input columns, seed, mode and seek hashes`,async()=>{
+  const inputs=Array.from({length:300},(_,tick)=>Array.from({length:players},(_,id)=>(tick*7+id*11)&31));
+  const replay=await recordReplay(wasm,identity,inputs,32769,0xffffffff,players);checkReplay(replay,identity);
+  const player=new ReplayPlayer(await Engine.create(wasm,32769,0xffffffff,players),replay);
+  assert.equal(await player.validate(),replay.checkpoints.at(-1).hash);
+  for(const tick of [0,121,299,60,300]){const reference=await Engine.create(wasm,32769,0xffffffff,players);for(let t=0;t<tick;t++)reference.step(inputs[t]);player.seek(tick);assert.equal(player.engine.hash(),reference.hash());}
+  assert.throws(()=>checkReplay({...replay,players:2},identity));assert.throws(()=>checkReplay({...replay,players:5},identity));
+  const corrupt=structuredClone(replay);corrupt.inputs[0][players-1]=32;assert.throws(()=>checkReplay(corrupt,identity));
+  assert.throws(()=>new ReplayPlayer(player.engine,{...replay,seed:0}));
+});

@@ -9,7 +9,7 @@ test('computer patrol repeats after reset and survives multiple refueling circui
   const engine=await Engine.create(binary,32769),pilot=new ComputerPilot();
   let firstHash;
   for(let run=0;run<2;run++){
-    engine.wasm.init(1024,32769,0);pilot.reset();
+    engine.wasm.init(1024,32769,0,2);pilot.reset();
     let left=false,right=false,fired=false,landings=0,grounded=true;
     for(let tick=0;tick<10000;tick++){
       const bits=pilot.input(engine.frame());
@@ -37,7 +37,7 @@ test('computer stays inactive outside the arena and restarts its route after dea
   for(let tick=0;tick<500;tick++)arena.step([0,pilot.input(arena.frame())]);
   const dead=arena.frame();dead[39]=0;
   assert.equal(pilot.input(dead),0);
-  arena.wasm.init(1024,32769,0);
+  arena.wasm.init(1024,32769,0,2);
   const fresh=new ComputerPilot();
   for(let tick=0;tick<500;tick++){
     const frame=arena.frame(),bits=pilot.input(frame);
@@ -45,4 +45,18 @@ test('computer stays inactive outside the arena and restarts its route after dea
   }
   const finished=arena.frame();finished[1]=0;
   assert.equal(pilot.input(finished),0);
+});
+
+test('computer can patrol and refuel from every randomized starting pad',async()=>{
+  for(let seed=0;seed<4;seed++){
+    const engine=await Engine.create(binary,32769,seed),pilot=new ComputerPilot();
+    let airborne=false,landed=false;
+    for(let tick=0;tick<4000;tick++){
+      engine.step([0,pilot.input(engine.frame())]);const state=engine.frame();
+      assert.equal(state[39],3,`seed ${seed} must survive`);
+      assert.ok(state[38]>0,`seed ${seed} must retain fuel`);
+      if(!state[40])airborne=true;else if(airborne)landed=true;
+    }
+    assert.ok(landed,`seed ${seed} must complete a refueling circuit`);
+  }
 });

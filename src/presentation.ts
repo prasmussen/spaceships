@@ -10,7 +10,7 @@ export class FragmentInterpolation {
   sample(state:Int32Array,now:number,reset=false,revision=0){
     const tick=state[0],poses=new Map<number,FragmentPose>();
     for(let i=0;i<256;i++){
-      const o=48+i*8;
+      const o=80+i*8;
       if(state[o+7]&&state[o+4]>0)poses.set(state[o+6],{x:state[o]/65536,y:state[o+1]/65536,angle:(state[o+7]>>>5)&4095,life:state[o+4]});
     }
     const last=this.frames.at(-1),frame={tick,poses};
@@ -74,7 +74,7 @@ export class FlightInterpolation {
 /** Shots move at constant velocity. Rewind to the firing ship's render time,
  * including WASM's truncated half-steps, and hide shots not yet born then. */
 export function projectilePose(state:Int32Array,index:number,tick:number,lifetime=120){
-  const o=48+index*8,delay=Math.max(0,state[0]-tick);
+  const o=80+index*8,delay=Math.max(0,state[0]-tick);
   return {
     x:(state[o]-Math.trunc(state[o+2]/2)*2*delay)/65536,
     y:(state[o+1]-Math.trunc(state[o+3]/2)*2*delay)/65536,

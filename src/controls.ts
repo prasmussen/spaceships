@@ -65,6 +65,6 @@ export class Controls {
       const alias=arrows[i],keys=alias&&!this.codes.includes(alias)?`${label(this.codes[i])} / ${label(alias)}`:label(this.codes[i]);
       return `${keys} ${action.toLowerCase()}`;
     }).join(' · ');footer.append(line);
-    const hint=document.createElement('p');hint.textContent='Boost bursts for 0.3s, uses extra fuel and recharges in 5s. Release before boosting again. Land upright and slowly on your illuminated pad to refuel.';footer.append(hint);
+    const hint=document.createElement('p');hint.textContent='Boost bursts for 0.3s, uses extra fuel and recharges in 5s. Release before boosting again. Land upright and slowly on any illuminated pad to refuel.';footer.append(hint);
   }
 }

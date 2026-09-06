@@ -51,15 +51,15 @@ async function createRenderer(canvas:HTMLCanvasElement,effects:Effects,get:Frame
   const uniform=buffer(32,GPUBufferUsage.UNIFORM);
   const terrainData=new Float32Array([...cave.solids.flat(),...cave.pads.flatMap(p=>[p.x-p.halfWidth,p.y,p.x+p.halfWidth,p.y])]);
   const terrain=buffer(terrainData.byteLength,GPUBufferUsage.STORAGE);
-  const ships=buffer(64,GPUBufferUsage.STORAGE),bullets=buffer(12288,GPUBufferUsage.STORAGE);
+  const ships=buffer(128,GPUBufferUsage.STORAGE),bullets=buffer(12288,GPUBufferUsage.STORAGE);
   const fragments=buffer(MAX_FRAGMENTS*FRAGMENT_STRIDE*4,GPUBufferUsage.STORAGE),fragmentData=new Float32Array(MAX_FRAGMENTS*FRAGMENT_STRIDE);
   device.queue.writeBuffer(terrain,0,terrainData);
   const group=device.createBindGroup({layout,entries:[uniform,terrain,ships,bullets,fragments].map((buffer,binding)=>({binding,resource:{buffer}}))});
-  const shipData=new Float32Array(16),bulletData=new Float32Array(3072);
-  const corrections=[new PositionCorrection(),new PositionCorrection()];
-  const flight=[new FlightInterpolation(),new FlightInterpolation()];
-  const shotClocks=[0,0],shotOffsets=[[0,0],[0,0]];
-  const thrustPower=[0,0];
+  const shipData=new Float32Array(32),bulletData=new Float32Array(3072);
+  const corrections=Array.from({length:4},()=>new PositionCorrection());
+  const flight=Array.from({length:4},()=>new FlightInterpolation());
+  const shotClocks=[0,0,0,0],shotOffsets=Array.from({length:4},()=>[0,0]);
+  const thrustPower=[0,0,0,0];
   let previous=performance.now();
   if(lost)throw Error('Graphics device was lost during initialization');
   ready=true;
@@ -69,7 +69,7 @@ async function createRenderer(canvas:HTMLCanvasElement,effects:Effects,get:Frame
     const {state,buttons,localSlot=0,correction=0,reducedMotion=false,snap,didSnap}=get();
     const dt=Math.min((now-previous)/1000,.1);previous=now;
     if(canvas.width!==innerWidth || canvas.height!==innerHeight){canvas.width=innerWidth;canvas.height=innerHeight;}
-    for(let p=0;p<2;p++){
+    for(let p=0;p<4;p++){
       const o=16+p*16;
       const visual=corrections[p].sample(state,p,state[0],correction,dt,snap||reducedMotion);
       const motion=flight[p].sample(state,p,now,snap);
@@ -89,7 +89,7 @@ async function createRenderer(canvas:HTMLCanvasElement,effects:Effects,get:Frame
     }
     if(snap&&state[0]>0)didSnap();
     for(let i=0;i<256;i++){
-      const o=48+i*8,owner=state[o+5],pose=projectilePose(state,i,shotClocks[owner],tuning.projectileLifetime);
+      const o=80+i*8,owner=state[o+5],pose=projectilePose(state,i,shotClocks[owner],tuning.projectileLifetime);
       bulletData.set([pose.x+shotOffsets[owner][0],pose.y+shotOffsets[owner][1],owner,pose.visible?1:0],i*4);
     }
     const particleCount=effects.write(bulletData,1024,now);

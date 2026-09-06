@@ -32,6 +32,7 @@ export class OnlineLobby {
   private available=false;
   private searching=false;
   private pendingSearch=false;
+  private playerCount=document.querySelector<HTMLSelectElement>('#online-players')!;
   constructor(callbacks:OnlineCallbacks){
     this.callbacks=callbacks;
     document.querySelector('#online-open')!.addEventListener('click',()=>{this.panel.hidden=false;this.callbacks.browse();if(!this.ws||this.ws.readyState>1)void this.connect();});
@@ -48,22 +49,24 @@ export class OnlineLobby {
   }
   get active(){return !!this.peer;}
   input(buttons:number){this.peer?.input(buttons);}
-  rematch(){this.ready=true;this.updateActions();this.send({type:'rematch'});this.panel.hidden=false;this.status.textContent='Waiting for your opponent to rematch…';}
+  rematch(){this.ready=true;this.updateActions();this.send({type:'rematch'});this.panel.hidden=false;this.status.textContent='Waiting for all players to rematch…';}
   private enabled(value:boolean){this.available=value;this.updateActions();}
   private updateActions(){
     const find=this.panel.querySelector<HTMLButtonElement>('#queue-join')!;
     find.hidden=this.searching||!!this.peer;
     find.disabled=false;
     this.panel.querySelector<HTMLButtonElement>('#queue-cancel')!.hidden=!this.searching;
+    this.playerCount.disabled=this.searching||!!this.peer;
     const rematch=this.panel.querySelector<HTMLButtonElement>('#online-ready')!;
     rematch.hidden=!this.room||!this.hasOpponent||!!this.peer||this.searching;
     rematch.disabled=!this.available||this.ready;
-    rematch.textContent=this.ready?'Waiting for opponent…':'Rematch';
+    document.querySelector<HTMLButtonElement>('#rematch')!.disabled=!!this.peer||this.ready||!this.available;
+    rematch.textContent=this.ready?'Waiting for players…':'Rematch';
   }
   private findOpponent(){
     this.pendingSearch=false;
     if(this.room){this.send({type:'leave'});this.room='';}
-    this.send({type:'queue'});
+    this.send({type:'queue',players:Number(this.playerCount.value)});
   }
   private async connect(){
     if(this.connecting||this.ws?.readyState===WebSocket.OPEN)return;
@@ -109,12 +112,12 @@ export class OnlineLobby {
       case 'room':
         this.room=m.code;this.slot=m.slot;this.ready=m.ready[this.slot];this.hasOpponent=m.present.every(Boolean);
         this.searching=false;this.updateActions();
-        if(!m.active)this.status.textContent=m.present.every(Boolean)?(this.ready?'Waiting for your opponent to rematch…':'Play again or find a new opponent.'):'Opponent left. Find another opponent.';break;
-      case 'queued':this.searching=true;this.updateActions();this.status.textContent='Searching for an opponent…';break;
+        if(!m.active)this.status.textContent=m.present.every(Boolean)?(this.ready?'Waiting for all players to rematch…':'Play again or find a new opponent.'):'A player left. Find a new match.';break;
+      case 'queued':this.searching=true;this.updateActions();this.status.textContent='Searching for players…';break;
       case 'queueCancelled':this.searching=false;this.updateActions();this.status.textContent='Search cancelled.';break;
       case 'match':await this.start(m.match,m.slot);break;
-      case 'signal':if(this.peer&&m.matchId===this.peer.match.id&&m.sender===1-this.slot)this.peer.signal(m.signal);break;
-      case 'peerDisconnected':this.status.textContent='Opponent is reconnecting…';break;
+      case 'signal':if(this.peer&&m.matchId===this.peer.match.id&&Number.isInteger(m.sender)&&m.sender>=0&&m.sender<this.peer.match.players&&m.sender!==this.slot)this.peer.signal(m.signal,m.sender);break;
+      case 'peerDisconnected':this.status.textContent='A player is reconnecting…';break;
       case 'ended':
         if(this.peer&&m.matchId===this.peer.match.id&&m.reason==='reported'&&!this.reported){
           this.pendingFinish=m.matchId;clearTimeout(this.finishTimer);
@@ -136,9 +139,9 @@ export class OnlineLobby {
     if(this.peer){this.endedNormally=true;this.peer.close('Replaced match',false);}
     clearTimeout(this.finishTimer);this.pendingFinish=undefined;
     this.slot=slot;this.reported=false;this.endedNormally=false;this.connectionReported=false;this.lastMetrics={stalls:0,rollbacks:0,desyncs:0};this.latest=undefined;
-    this.status.textContent='Connecting to opponent…';this.callbacks.start(slot);this.panel.hidden=true;
+    this.status.textContent='Connecting to players…';this.callbacks.start(slot);this.panel.hidden=true;
     this.peer=new PeerMatch(match,slot,config.iceServers,{
-      signal:signal=>this.send({type:'signal',matchId:match.id,signal}),
+      signal:value=>{const {recipient,signal}=value as {recipient:number;signal:unknown};this.send({type:'signal',matchId:match.id,recipient,signal});},
       refreshICE:async()=>{
         const response=await fetch('/api/config',{signal:AbortSignal.timeout(8000)});if(!response.ok)throw Error('Unable to renew relay credentials');
         const config=await response.json();

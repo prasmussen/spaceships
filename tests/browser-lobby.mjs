@@ -1,3 +1,4 @@
+import {checkOnlineGroups} from './browser-multiplayer.mjs';
 import {execFile,spawn} from 'node:child_process';
 import {promisify} from 'node:util';
 import {createServer} from 'node:net';
@@ -36,15 +37,15 @@ export async function checkLobby(browser,turn){
     }
     const send=(page,message)=>page.evaluate(message=>window.lobbySocket.send(JSON.stringify(message)),message);
     const wait=(page,type)=>page.waitForFunction(type=>window.lobbyMessages.some(m=>m.type===type),type);
-    await send(pages[0],{type:'create'});await wait(pages[0],'room');const code=await pages[0].evaluate(()=>window.lobbyMessages.find(m=>m.type==='room').code);
+    await send(pages[0],{type:'create',players:2});await wait(pages[0],'room');const code=await pages[0].evaluate(()=>window.lobbyMessages.find(m=>m.type==='room').code);
     await send(pages[1],{type:'join',code});await wait(pages[1],'room');
     await Promise.all(pages.map(page=>send(page,{type:'ready',ready:true})));await Promise.all(pages.map(page=>wait(page,'match')));
     const matches=await Promise.all(pages.map(page=>page.evaluate(()=>window.lobbyMessages.find(m=>m.type==='match'))));
     assert.equal(matches[0].match.id,matches[1].match.id);assert.equal(matches[0].slot,0);assert.equal(matches[1].slot,1);
     const id=matches[0].match.id;
-    await send(pages[0],{type:'signal',matchId:id,signal:{type:'offer',sdp:'browser-routing-check'}});await wait(pages[1],'signal');
+    await send(pages[0],{type:'signal',matchId:id,recipient:1,signal:{type:'offer',sdp:'browser-routing-check'}});await wait(pages[1],'signal');
     const forwarded=await pages[1].evaluate(()=>window.lobbyMessages.find(m=>m.type==='signal'));assert.equal(forwarded.sender,0);assert.equal(forwarded.signal.sdp,'browser-routing-check');
-    await send(pages[0],{type:'finish',matchId:id,winner:0});await Promise.all(pages.map(page=>wait(page,'ended')));
+    await Promise.all(pages.map(page=>send(page,{type:'finish',matchId:id,winner:0}))); await Promise.all(pages.map(page=>wait(page,'ended')));
     const ended=await pages[1].evaluate(()=>window.lobbyMessages.find(m=>m.type==='ended'));assert.equal(ended.trust,'unverified');
     await Promise.all(pages.map(page=>page.evaluate(()=>{window.lobbyMessages=[];window.lobbySocket.send(JSON.stringify({type:'rematch'}))})));await Promise.all(pages.map(page=>wait(page,'match')));
     const rematch=await pages[0].evaluate(()=>window.lobbyMessages.find(m=>m.type==='match').match);assert.notEqual(rematch.id,id);assert.notEqual(rematch.epoch,matches[0].match.epoch);
@@ -86,7 +87,7 @@ export async function checkLobby(browser,turn){
     await gamePages[0].keyboard.down('Space');await gamePages[1].keyboard.down('d');
     await gamePages[0].waitForTimeout(600);
     await Promise.all(gamePages.map(page=>page.keyboard.up('w')));await gamePages[0].keyboard.up('Space');await gamePages[1].keyboard.up('d');
-    assert.ok(Number(await gamePages[1].locator('#status strong').nth(2).textContent())>0,'remote slot controls its own rotation');
+    assert.ok(Number(await gamePages[1].locator('#status strong').nth(3).textContent())>0,'remote slot controls its own rotation');
     assert.ok(parseInt(await gamePages[0].locator('#status strong').first().textContent())<100,'online input consumes local fuel');
     if(turn)await Promise.all(gamePages.map(page=>page.waitForFunction(()=>window.onlineTestTick>=200)));
     let reconnectRequests=0;
@@ -123,6 +124,7 @@ export async function checkLobby(browser,turn){
     }
     await writeFile(turn?'artifacts/relay-browser.json':'artifacts/online-browser.json',JSON.stringify({automaticMatchmaking:true,sharedCookieWindows:true,forcedRelay:!!turn,webRTC:true,bothControls:true,leave:true,httpReconnect:true,queueCancel:true,queueAndRequeue:true},null,2)+'\n');
     console.log('Online matchmaking UI passed through the Go service and real WebRTC: automatic start, flight controls and leave.');
+    if(process.argv.includes('--multiplayer'))await checkOnlineGroups(browser,base,!!turn);
     console.log('Go service browser checks passed: guest cookies, invite, ready, signaling, finish, rematch and leave.');
     if(process.argv.includes('--full-match'))await checkFullMatch(browser,base,!!turn);
   }finally{

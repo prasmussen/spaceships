@@ -35,16 +35,16 @@ The server sends `welcome` with the current identity. A new guest sends `hello` 
 
 | Client message | Effect |
 | --- | --- |
-| `create` | Create an invite room, receive `room` with code and slot |
+| `create {players}` | Create a 2–4-player invite room, receive `room` with code and slot |
 | `join {code}` | Join an available room in the selected region |
-| `queue` / `cancelQueue` | Pair compatible clients within the same region, or cancel |
-| `ready {ready}` | Set ready state; both ready starts a match |
-| `signal {matchId, signal}` | Forward bounded signaling only to the opponent in this active match; sender is stamped by the server |
-| `finish {matchId, winner?}` | End the casual match with an explicitly unverified report |
-| `rematch` | Ready for a fresh match ID/epoch/seed; both clients must opt in |
-| `leave` | Leave room/queue; an active opponent receives disconnected termination |
+| `queue {players}` / `cancelQueue` | Group compatible clients with the same 2–4-player count and region, or cancel |
+| `ready {ready}` | Set ready state; every occupied slot ready starts a match |
+| `signal {matchId, recipient, signal}` | Forward bounded signaling only to the specified other slot in this active match; sender is stamped by the server |
+| `finish {matchId, winner}` | Collect every participant’s matching winner report before ending the match; results remain unverified |
+| `rematch` | Ready for a fresh match ID/epoch/seed; all clients must opt in |
+| `leave` | Leave room/queue; all active opponents receive disconnected termination |
 | `metrics {matchId, metrics}` | Submit bounded operational counters for an active match |
 
-A `match` message fixes player slots, random match ID/epoch/seed, exact content identity, input delay 2, region and designated recovery peer 0. WebSocket reconnect with the same cookie preserves room and slot for ten seconds; the server resends room and match configuration. The client must resume/renegotiate its peer transport. The browser retries temporary HTTP failures during reconnect and bounds HTTP/WebSocket setup by the remaining grace window. After that grace window, cleanup frees the room membership and informs the opponent. Sessions, rates and idle clients are also cleaned periodically.
+A `match` message fixes player count and slots, random match ID/epoch/seed, exact content identity, input delay 2, region and designated recovery peer 0. WebSocket reconnect with the same cookie preserves room and slot for ten seconds; the server resends room and match configuration. The client must resume/renegotiate its peer transport. The browser retries temporary HTTP failures during reconnect and bounds HTTP/WebSocket setup by the remaining grace window. After that grace window, cleanup frees the room membership and informs all opponents. Sessions, rates and idle clients are also cleaned periodically.
 
 WebSocket framing/concurrency follows the [Gorilla WebSocket API](https://pkg.go.dev/github.com/gorilla/websocket). TURN credentials follow [coturn's REST authentication configuration](https://github.com/coturn/coturn/blob/master/README.turnserver). Local forced-relay and HTTPS/WSS browser checks are implemented; public acceptance remains outstanding. See [deployment](deployment.md) and [TURN](turn.md).

@@ -10,7 +10,7 @@ struct Ship { position:vec2f, angle:f32, alive:f32, thrust:f32, protection:f32, 
 fn line(p:vec2f, a:vec2f, b:vec2f)->f32 {
   let ab=b-a; return length(p-a-ab*clamp(dot(p-a,ab)/dot(ab,ab),0.,1.));
 }
-fn tint(player:u32)->vec3f { return select(vec3f(.18,.85,.72),vec3f(1.,.48,.25),player==1u); }
+fn tint(player:u32)->vec3f { return array<vec3f,4>(vec3f(.18,.85,.72),vec3f(1.,.48,.25),vec3f(.48,.65,1.),vec3f(.95,.48,.88))[min(player,3u)]; }
 fn exhaust(p:vec2f,power:f32,player:u32)->vec3f {
   if(power<.01 || p.y<10. || p.y>52. || abs(p.x)>9.){return vec3f(0.);}
   let t=view.time+f32(player)*2.7;
@@ -36,7 +36,7 @@ fn exhaust(p:vec2f,power:f32,player:u32)->vec3f {
   var color=vec3f(.025,.044,.062);
   if(min(grid.x,grid.y)<.7){color+=vec3f(.025,.044,.05);}
   if(view.mode>.5) {
-    let solidCount=select(arrayLength(&terrain)-2u,6u,view.mode>1.5);
+    let solidCount=select(arrayLength(&terrain)-4u,8u,view.mode>1.5);
     for(var i=0u;i<solidCount;i++) {
       let rect=terrain[i];
       if(world.x>=rect.x && world.x<=rect.z && world.y>=rect.y && world.y<=rect.w) {
@@ -45,12 +45,12 @@ fn exhaust(p:vec2f,power:f32,player:u32)->vec3f {
         color+=vec3f(.08,.14,.16)*exp(-rim*.5);
       }
     }
-    for(var player=0u;player<2u;player++) {
-      let pad=terrain[arrayLength(&terrain)-2u+player];
-      color+=tint(player)*exp(-line(world,pad.xy,pad.zw)*.2);
+    for(var padIndex=0u;padIndex<4u;padIndex++) {
+      let pad=terrain[arrayLength(&terrain)-4u+padIndex];
+      color+=vec3f(.5,.85,.65)*exp(-line(world,pad.xy,pad.zw)*.2);
     }
   }
-  for(var player=0u;player<2u;player++) {
+  for(var player=0u;player<4u;player++) {
     let ship=ships[player];
     if(ship.alive<.5){continue;}
     let local=world-ship.position;

@@ -24,7 +24,7 @@ if(tuning.muzzleSpeed>786432 || tuning.projectileLifetime>120 || tuning.weaponCo
 const configData = [...configBytes].map(v=>'\\'+v.toString(16).padStart(2,'0')).join('');
 const caveSource = await readFile('sim/cave.json','utf8');
 const cave = JSON.parse(caveSource);
-if(cave.width!==3200 || cave.height!==2000 || cave.cellSize!==200 || cave.solids.length>32 || cave.pads.length!==2)throw Error('Unsupported cave bounds');
+if(cave.width!==6400 || cave.height!==4000 || cave.cellSize!==400 || cave.solids.length>32 || cave.pads.length!==4)throw Error('Unsupported cave bounds');
 const mapBytes=Buffer.alloc(1664);
 mapBytes.writeInt32LE(cave.version,0);mapBytes.writeInt32LE(cave.width*65536,4);mapBytes.writeInt32LE(cave.height*65536,8);mapBytes.writeInt32LE(cave.solids.length,12);
 for(const [i,pad]of cave.pads.entries()) {
@@ -34,7 +34,7 @@ for(const [i,pad]of cave.pads.entries()) {
 for(const [i,rect]of cave.solids.entries()) {
   if(rect.length!==4 || !rect.every(Number.isInteger) || rect[0]<0 || rect[1]<0 || rect[2]>cave.width || rect[3]>cave.height || rect[0]>=rect[2] || rect[1]>=rect[3])throw Error('Invalid solid');
   rect.forEach((v,k)=>mapBytes.writeInt32LE(v*65536,64+i*16+k*4));
-  for(let y=0;y<10;y++)for(let x=0;x<16;x++)if(rect[0]<=(x+1)*200 && rect[2]>=x*200 && rect[1]<=(y+1)*200 && rect[3]>=y*200) {
+  for(let y=0;y<10;y++)for(let x=0;x<16;x++)if(rect[0]<=(x+1)*cave.cellSize && rect[2]>=x*cave.cellSize && rect[1]<=(y+1)*cave.cellSize && rect[3]>=y*cave.cellSize) {
     const offset=1024+(y*16+x)*4;mapBytes.writeUInt32LE((mapBytes.readUInt32LE(offset)|(1<<i))>>>0,offset);
   }
 }
@@ -53,7 +53,8 @@ source = source.replace(';; COMBAT',await readFile('sim/combat.wat','utf8'));
 source = source.replace(';; COLLISION',await readFile('sim/collision.wat','utf8')).replace(';; LANDING',await readFile('sim/landing.wat','utf8'));
 source = source.replace(';; MAP_DATA',`(data (i32.const 32768) \"${mapData}\")`).replace(';; MAP_VALIDATE', Array.from({length:mapBytes.length/4},(_,i)=>`(if (i32.ne (i32.load (i32.const ${32768+i*4})) (i32.const ${mapBytes.readInt32LE(i*4)})) (then (return (i32.const 0))))`).join('\n'));
 source = source.replace(';; CONFIG_DATA', `(data (i32.const 1024) \"${configData}\")`).replace(';; CONFIG_VALIDATE', configKeys.map((key,i) => `(if (i32.ne (i32.load (i32.const ${1024+i*4})) (i32.const ${tuning[key]})) (then (return (i32.const 0))))`).join('\n'));
-source = source.replace(/@([a-zA-Z]+)@/g, (_,key)=> { if (!(key in tuning)) throw Error(`Unknown tuning ${key}`); return String(tuning[key]); });
+const constants={...tuning,padCount:cave.pads.length,padsEnd:32784+cave.pads.length*12,mapWidthQ:cave.width*65536,mapHeightQ:cave.height*65536};
+source = source.replace(/@([a-zA-Z]+)@/g, (_,key)=> { if (!(key in constants)) throw Error(`Unknown tuning ${key}`); return String(constants[key]); });
 const module = wabt.parseWat('simulation.wat',source);
 module.resolveNames(); module.validate();
 const {buffer} = module.toBinary({canonicalize_lebs:true,write_debug_names:true});
@@ -62,7 +63,7 @@ await mkdir('public',{recursive:true});
 await mkdir('tests',{recursive:true});
 await writeFile('public/simulation.wasm',buffer);
 const hash = data => createHash('sha256').update(data).digest('hex');
-await writeFile('public/build.json',JSON.stringify({protocol:1,abi:1,wasm:hash(buffer),config:hash(configBytes),map:hash(mapBytes),tuning},null,2)+'\n');
+await writeFile('public/build.json',JSON.stringify({protocol:2,abi:2,wasm:hash(buffer),config:hash(configBytes),map:hash(mapBytes),tuning},null,2)+'\n');
 const diagnostic=wabt.parseWat('collision-test.wat',source.replace(/\)\s*$/, '(export \"circle_toi\" (func $circle_toi)) (export \"rect_toi\" (func $rect_toi)) (export \"terrain_toi\" (func $terrain_toi)))'));
 diagnostic.validate();
 await writeFile('tests/collision-test.wasm',diagnostic.toBinary({}).buffer);

@@ -64,10 +64,10 @@
     (local.set $owner (i32.div_u (i32.sub (local.get $p) (i32.const 4160)) (i32.const 64)))
     (local.set $angle (i32.load offset=16 (local.get $p)))
     (local.set $sin (call $sin (local.get $angle))) (local.set $cos (call $sin (i32.add (local.get $angle) (i32.const 1024))))
-    (local.set $slot (i32.const 4288))
+    (local.set $slot (i32.const 4416))
     (loop $pieces
       (block $free (loop $find
-        (if (i32.ge_u (local.get $slot) (i32.const 12480)) (then (return)))
+        (if (i32.ge_u (local.get $slot) (i32.const 12608)) (then (return)))
         (br_if $free (i32.eqz (i32.load offset=16 (local.get $slot))))
         (local.set $slot (i32.add (local.get $slot) (i32.const 32))) (br $find)))
       (if (i32.eq (i32.load (i32.const 4108)) (i32.const 2147483647)) (then (return)))
@@ -89,7 +89,7 @@
     (local $slot i32) (local $meta i32) (local $table i32) (local $radius i32)
     (local $x i32) (local $y i32) (local $dx i32) (local $dy i32) (local $t i32) (local $hit i32)
     (local $shiphit i32) (local $player i32) (local $target i32) (local $old i32) (local $angle i32)
-    (local.set $slot (i32.const 4288))
+    (local.set $slot (i32.const 4416))
     (loop $pool
       (local.set $meta (i32.load offset=28 (local.get $slot)))
       (if (i32.and (i32.ne (i32.load offset=16 (local.get $slot)) (i32.const 0)) (i32.ne (local.get $meta) (i32.const 0))) (then
@@ -102,23 +102,17 @@
         (local.set $t (i32.const 65537))
         (if (i32.load (i32.const 4104)) (then
           (local.set $t (call $terrain_toi (local.get $x) (local.get $y) (local.get $dx) (local.get $dy) (local.get $radius)))))
-        (local.set $player (i32.sub (i32.const 1) (i32.load offset=20 (local.get $slot))))
-        (local.set $target (i32.add (i32.const 4160) (i32.mul (local.get $player) (i32.const 64))))
-        (local.set $old (i32.add (i32.const 40016) (i32.mul (local.get $player) (i32.const 8))))
+        (local.set $player (call $nearest_target (local.get $x) (local.get $y) (local.get $dx) (local.get $dy)
+          (i32.add (i32.const 1048576) (local.get $radius)) (i32.load offset=20 (local.get $slot)) (i32.const 0)))
+        (local.set $target (call $ship (local.get $player)))
         (local.set $shiphit (i32.const 0))
-        (local.set $hit (i32.const 65537))
-        (if (i32.gt_s (i32.load offset=28 (local.get $target)) (i32.const 0)) (then
-          (local.set $hit (call $circle_toi
-            (i32.sub (local.get $x) (i32.load (local.get $old))) (i32.sub (local.get $y) (i32.load offset=4 (local.get $old)))
-            (i32.sub (local.get $dx) (i32.sub (i32.load (local.get $target)) (i32.load (local.get $old))))
-            (i32.sub (local.get $dy) (i32.sub (i32.load offset=4 (local.get $target)) (i32.load offset=4 (local.get $old))))
-            (i32.const 0) (i32.const 0) (i32.add (i32.const 1048576) (local.get $radius))))))
+        (local.set $hit (i32.load (i32.const 40200)))
         (if (i32.and (i32.le_s (local.get $hit) (i32.const 65536)) (i32.lt_s (local.get $hit) (local.get $t))) (then
           (local.set $t (local.get $hit))
           (local.set $shiphit (i32.const 1))
           ;; At most 2% speed loss per ship per tick, no hull damage.
-          (if (i32.and (i32.eqz (i32.and (local.get $meta) (i32.const 131072))) (i32.eqz (i32.and (i32.load (i32.const 40116)) (i32.shl (i32.const 1) (local.get $player))))) (then
-            (i32.store (i32.const 40116) (i32.or (i32.load (i32.const 40116)) (i32.shl (i32.const 1) (local.get $player))))
+          (if (i32.and (i32.eqz (i32.and (local.get $meta) (i32.const 131072))) (i32.eqz (i32.and (i32.load (i32.const 40132)) (i32.shl (i32.const 1) (local.get $player))))) (then
+            (i32.store (i32.const 40132) (i32.or (i32.load (i32.const 40132)) (i32.shl (i32.const 1) (local.get $player))))
             (i32.store offset=8 (local.get $target) (call $mul (i32.load offset=8 (local.get $target)) (i32.const 64225)))
             (i32.store offset=12 (local.get $target) (call $mul (i32.load offset=12 (local.get $target)) (i32.const 64225)))))
           (local.set $meta (i32.or (local.get $meta) (i32.const 131072)))
@@ -132,4 +126,4 @@
         (i32.store offset=28 (local.get $slot) (i32.or (i32.and (local.get $meta) (i32.const -131041)) (i32.shl (local.get $angle) (i32.const 5))))
       ))
       (local.set $slot (i32.add (local.get $slot) (i32.const 32)))
-      (br_if $pool (i32.lt_u (local.get $slot) (i32.const 12480)))))
+      (br_if $pool (i32.lt_u (local.get $slot) (i32.const 12608)))))

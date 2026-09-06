@@ -1,7 +1,7 @@
-  ;; Arena keeps the first six solids: four perimeter walls and two pad platforms.
+  ;; Arena keeps the first eight solids: four perimeter walls and four pad platforms.
   (func $solid_count (result i32)
     (if (result i32) (i32.eq (i32.load (i32.const 4104)) (i32.const 2))
-      (then (i32.const 6)) (else (i32.load (i32.const 32780)))))
+      (then (i32.const 8)) (else (i32.load (i32.const 32780)))))
   ;; Integer swept circle versus axis-aligned polygon edges and rounded corners.
   ;; Time uses [0,65536]; 65537 means no contact. Equal times preserve solid ID.
   (func $abs (param $v i32) (result i32)
@@ -70,10 +70,10 @@
   ;; Query the swept AABB's grid cells, OR their solid bitsets, then visit stable IDs.
   (func $terrain_toi (param $x i32) (param $y i32) (param $dx i32) (param $dy i32) (param $r i32) (result i32)
     (local $x0 i32) (local $x1 i32) (local $y0 i32) (local $y1 i32) (local $gx i32) (local $gy i32) (local $mask i32) (local $id i32) (local $t i32)
-    (local.set $x0 (call $max (i32.const 0) (i32.div_s (i32.sub (call $min (local.get $x) (i32.add (local.get $x) (local.get $dx))) (local.get $r)) (i32.const 13107200))))
-    (local.set $x1 (call $min (i32.const 15) (i32.div_s (i32.add (call $max (local.get $x) (i32.add (local.get $x) (local.get $dx))) (local.get $r)) (i32.const 13107200))))
-    (local.set $y0 (call $max (i32.const 0) (i32.div_s (i32.sub (call $min (local.get $y) (i32.add (local.get $y) (local.get $dy))) (local.get $r)) (i32.const 13107200))))
-    (local.set $y1 (call $min (i32.const 9) (i32.div_s (i32.add (call $max (local.get $y) (i32.add (local.get $y) (local.get $dy))) (local.get $r)) (i32.const 13107200))))
+    (local.set $x0 (call $max (i32.const 0) (i32.div_s (i32.sub (call $min (local.get $x) (i32.add (local.get $x) (local.get $dx))) (local.get $r)) (i32.const 26214400))))
+    (local.set $x1 (call $min (i32.const 15) (i32.div_s (i32.add (call $max (local.get $x) (i32.add (local.get $x) (local.get $dx))) (local.get $r)) (i32.const 26214400))))
+    (local.set $y0 (call $max (i32.const 0) (i32.div_s (i32.sub (call $min (local.get $y) (i32.add (local.get $y) (local.get $dy))) (local.get $r)) (i32.const 26214400))))
+    (local.set $y1 (call $min (i32.const 9) (i32.div_s (i32.add (call $max (local.get $y) (i32.add (local.get $y) (local.get $dy))) (local.get $r)) (i32.const 26214400))))
     (local.set $gy (local.get $y0))
     (block $rows_done (loop $rows
       (br_if $rows_done (i32.gt_s (local.get $gy) (local.get $y1)))

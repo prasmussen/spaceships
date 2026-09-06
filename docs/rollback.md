@@ -1,40 +1,11 @@
-# Cavern Duel
+# Rollback and confirmation
 
-A work-in-progress implementation of `plan.txt`: online spaceship deathmatch, flight/landing practice, online invite/queue play, and an interactive rollback/replay laboratory. Gameplay is handwritten WAT compiled to WASM. TypeScript workers run the simulation; WebGPU renders the cave.
+Each match has 2–4 participants. `Rollback` retains an input map for each slot, complete input vectors for executed ticks, pre-tick snapshots, hashes and separate acknowledgements for every remote peer. Commands are scheduled two ticks ahead; missing remote inputs repeat that player's last known buttons.
 
-Requires a recent Node.js (22.18+ for the TypeScript test modules) and a desktop WebGPU browser.
+`complete` is the highest contiguous tick with inputs from every player. `agreed` is the minimum of that frontier and every remote acknowledgement. Simulation may speculate at most 12 ticks beyond agreement and retains 120 ticks of snapshots for repairs. Late input rolls back to its pre-tick snapshot and re-executes the full vectors. Duplicate identical inputs are harmless; conflicting submissions, foreign ownership and out-of-window repairs are rejected.
 
-```sh
-npm install
-npm run build
-npm run dev
-```
+The online worker runs one shared simulation per browser. Its full-mesh RTC links carry latest-eight input packets and reliable repairs, bound to the authenticated sender slot. Confirmed HUD scores, winner and replay capture use agreed snapshots and inputs. A missing participant stalls everyone; a ten-second input stall ends the match.
 
-Open the printed localhost URL. Use **W/A/D + Space** to control your ship. Multiplayer requires a separate browser for each player through Online duel. **R** restarts. Open Controls to change your bindings or the restart/rematch key. Bindings persist in this browser; the footer always shows the current keys. Reduce camera motion disables velocity look-ahead and correction offsets; its initial value follows the system preference. Counter-steer to stop rotation. Land upright and slowly on your own illuminated pad to refuel. Other terrain contact crashes; shots take three hull points to kill. First to five wins; tied winning scores continue until one player leads.
+Peers compare agreed checkpoint hashes every 60 ticks. Slot 0 coordinates one bounded recovery across all participants. Every participant restores the same agreed snapshot and replays retained inputs. Slot 0 waits for all recovery acknowledgements before releasing the match. A later mismatch aborts. [Protocol details](protocol.md) describe the recovery messages and revisions.
 
-Select Flight lab for open practice or Landing course to practice refueling. Rollback lab runs two independent peers behind configurable delay/loss/outages, compares them with a reference replay, and lets you seek, save or open a validated replay. Focus loss clears controls; hidden tabs pause standalone play. Graphics device loss triggers automatic resource rebuilding while the simulation continues. If the GPU remains unavailable, Retry graphics attempts recovery without resetting the match.
-
-```sh
-npm test                            # simulation, collision, combat, rollback, replay, desync
-npm run build                       # validate WAT, type-check, bundle production site
-node tests/browser.mjs              # self-contained Chrome/WebGPU and replay test
-node tests/browser.mjs --all-engines # also provision Firefox/WebKit and compare hashes
-node tests/browser.mjs --peer --lobby # real WebRTC workers, invite UI and Go lobby flows
-node tests/browser.mjs --turn        # Docker coturn and forced-relay invite play
-node scripts/benchmark.mjs           # simulation tick and 12-tick rollback measurements
-go test -race ./...                  # Go HTTP/WebSocket integration and race checks
-```
-
-Reuse `tests/browser.mjs` for browser checks. It starts/closes its server and browsers, uses installed Google Chrome, provisions pinned Firefox/WebKit when requested, and writes artifacts locally. On macOS it uses official URLs from the pinned Playwright CLI and native ZIP extraction.
-
-The build pins WABT, concatenates handwritten WAT fragments, inserts checked-in integer trig/map/configuration data, validates the binary, and emits SHA-256 content identities. No JS imports or floating-point operations execute gameplay. See [the ABI and integer rules](docs/simulation.md), [rollback/replay architecture](docs/rollback.md), and [performance baseline](docs/performance.md).
-
-The Go guest/lobby/signaling service is implemented: after building, run `go run ./cmd/server` to serve the app and APIs on port 8080. See [service configuration](docs/server.md) and [peer packet formats](docs/protocol.md).
-
-For online play, open the Go-served app in two browsers, select Online duel, connect, create/join an invite and have both players select Ready. Each player can use either control set. Find opponent joins the selected region’s queue. See [TURN setup and testing](docs/turn.md) for connections across networks; the force-relay option requires a working TURN service.
-
-Validate an exported laboratory replay with `go run ./cmd/replaycheck artifacts/browser-replay.json`. See [replay validation](docs/replays.md).
-
-Use Capture replay in the online panel to save confirmed play; a final recording is also prepared when you leave or the match ends. Open the downloaded JSON in Rollback lab, or validate it with the Go command above.
-
-TURN deployment and release polish remain in progress. [PROGRESS.md](PROGRESS.md) tracks the full original scope and verification limits.
+The interactive laboratory remains a two-peer demonstration. Node tests additionally exercise three and four independent rollback peers and wire sessions under loss, duplication, reordering, outages and state mismatch. Browser checks exercise actual 2–4-player RTC meshes, independent controls, synchronized hashes, pause/resume and Go-validated replay capture.

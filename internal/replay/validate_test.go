@@ -3,6 +3,7 @@ package replay
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -80,5 +81,55 @@ func TestDecodeRejectsMalformedJSON(t *testing.T) {
 		if _, err := Decode(strings.NewReader(raw)); err == nil {
 			t.Fatalf("accepted %s", raw)
 		}
+	}
+}
+
+func TestMultiplayerReplays(t *testing.T) {
+	root := filepath.Join("..", "..")
+	wasm, err := os.ReadFile(filepath.Join(root, "public", "simulation.wasm"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := os.ReadFile(filepath.Join(root, "public", "build.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var identity Identity
+	if err := json.Unmarshal(manifest, &identity); err != nil {
+		t.Fatal(err)
+	}
+	for _, count := range []int{3, 4} {
+		t.Run(fmt.Sprint(count), func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "replay.json")
+			cmd := exec.Command("node", "tests/replay-fixture.mjs", path, fmt.Sprint(count))
+			cmd.Dir = root
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("oracle: %v: %s", err, out)
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r, err := Decode(strings.NewReader(string(data)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := Validate(context.Background(), wasm, identity, r)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(result.Scores) != count || result.Hash != r.Checkpoints[len(r.Checkpoints)-1].Hash {
+				t.Fatalf("JS/Go divergence: %+v", result)
+			}
+			r.Inputs[0][count-1] = 32
+			if _, err := Validate(context.Background(), wasm, identity, r); err == nil {
+				t.Fatal("accepted invalid final-player input")
+			}
+			r.Inputs[0][count-1] = 0
+			r.Players = 2
+			if _, err := Validate(context.Background(), wasm, identity, r); err == nil {
+				t.Fatal("accepted count mismatch")
+			}
+		})
 	}
 }

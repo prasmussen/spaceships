@@ -14,7 +14,7 @@ export async function startTurn(){
   const {stdout}=await exec('docker',['run','--rm','-d','--name',`cavern-turn-test-${process.pid}`,
     '-p',`${host}:34789:3478/tcp`,'-p',`${host}:34789:3478/udp`,'-p',`${host}:45000-45031:45000-45031/udp`,image,
     '-c','/dev/null','--log-file=stdout','--no-tls','--fingerprint','--use-auth-secret',`--static-auth-secret=${secret}`,
-    '--realm=cavern-test','--verbose',`--external-ip=${host}`,'--min-port=45000','--max-port=45031','--user-quota=8','--total-quota=32']).catch(async error=>{const id=error.stdout?.trim();if(/^[a-f0-9]{64}$/.test(id??''))await exec('docker',['rm','-f',id]);throw Error(error.stderr??'Unable to start local TURN');});
+    '--realm=cavern-test','--verbose',`--external-ip=${host}`,'--min-port=45000','--max-port=45031','--user-quota=16','--total-quota=128']).catch(async error=>{const id=error.stdout?.trim();if(/^[a-f0-9]{64}$/.test(id??''))await exec('docker',['rm','-f',id]);throw Error(error.stderr??'Unable to start local TURN');});
   const id=stdout.trim();
   async function close(){
     try{const {stdout,stderr}=await exec('docker',['logs',id]);await writeFile('artifacts/turn-server.log',stdout+stderr);}finally{await exec('docker',['stop','-t','2',id]);}

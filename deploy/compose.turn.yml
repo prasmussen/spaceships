@@ -25,7 +25,7 @@ services:
       - --external-ip=${TURN_PUBLIC_IP:?Set TURN_PUBLIC_IP}/${TURN_PRIVATE_IP}
       - --min-port=45000
       - --max-port=45199
-      - --user-quota=8
+      - --user-quota=16
       - --total-quota=1000
       - --max-bps=262144
       - --bps-capacity=26214400

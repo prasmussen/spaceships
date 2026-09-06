@@ -8,7 +8,7 @@
       (i32.or (i32.eqz (i32.load offset=24 (local.get $p)))
         (i32.or (i32.eqz (i32.load offset=28 (local.get $p)))
           (i32.eqz (i32.load offset=28 (local.get $target)))))) (then (return)))
-    (if (i32.or (i32.load (i32.const 40008)) (i32.load (i32.const 40012))) (then (return)))
+    (if (i32.or (i32.load (call $crash_ptr (i32.div_u (i32.sub (local.get $p) (i32.const 4160)) (i32.const 64)))) (i32.load (call $crash_ptr (i32.div_u (i32.sub (local.get $target) (i32.const 4160)) (i32.const 64))))) (then (return)))
     (local.set $dx (i32.sub (i32.load (local.get $target)) (i32.load (local.get $p))))
     (local.set $dy (i32.sub (i32.load offset=4 (local.get $target)) (i32.load offset=4 (local.get $p))))
     (if (i32.or (i32.gt_u (call $abs (local.get $dx)) (i32.const 6291456))
@@ -42,8 +42,8 @@
         (if (i32.lt_s (call $abs (local.get $push)) (i32.div_s (local.get $force) (i32.const 4))) (then
           (local.set $push (i32.mul (i32.div_s (local.get $force) (i32.const 4))
             (if (result i32) (i32.lt_s (local.get $dx) (i32.const 0)) (then (i32.const -1)) (else (i32.const 1)))))))
-        (i32.store (i32.add (i32.const 40120) (i32.div_u (i32.sub (local.get $target) (i32.const 4160)) (i32.const 16)))
-          (call $clamp (i32.mul (i32.const @padExhaustResponse@) (local.get $push)) (i32.const 49152)))
+        (i32.store (i32.add (i32.const 40136) (i32.div_u (i32.sub (local.get $target) (i32.const 4160)) (i32.const 16)))
+          (call $clamp (i32.add (i32.load (i32.add (i32.const 40136) (i32.div_u (i32.sub (local.get $target) (i32.const 4160)) (i32.const 16)))) (i32.mul (i32.const @padExhaustResponse@) (local.get $push))) (i32.const 49152)))
         (return)))
       (i32.store offset=32 (local.get $target) (i32.const 0))))
     (i32.store offset=8 (local.get $target) (call $clamp

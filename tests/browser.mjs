@@ -93,7 +93,16 @@ try {
   await page.getByLabel('Sound effects',{exact:true}).check();
   await page.getByRole('button',{name:'Done',exact:true}).click();
   await page.getByRole('button',{name:'Flight lab',exact:true}).click();
-  await page.waitForFunction(()=>window.testPracticeFrame?.state[2]===2&&window.testPracticeFrame.state[33]<1680*65536);
+  await page.waitForFunction(()=>window.testPracticeFrame?.state[2]===2&&window.testPracticeFrame.state[40]===0);
+  for(const players of [3,4,2]){
+    await page.locator('#local-menu summary').click();
+    await page.getByLabel('Practice players',{exact:true}).selectOption(String(players));
+    await page.waitForFunction(count=>window.testPracticeFrame?.state[5]===count,players);
+    await page.waitForFunction(count=>Array.from({length:count-1},(_,id)=>window.testPracticeFrame.state[40+id*16]).every(grounded=>grounded===0),players);
+    assert.deepEqual(await page.evaluate(count=>Array.from({length:count},(_,id)=>window.testPracticeFrame.state[23+id*16]),players),Array(players).fill(3));
+    await page.locator('#local-menu summary').click();
+    if(players===4)await page.screenshot({path:'artifacts/four-player-practice.png'});
+  }
   assert.match(await page.locator('#status').textContent(),/COMPUTER/);
   await page.waitForTimeout(100);
   await page.keyboard.down('w');
@@ -101,7 +110,7 @@ try {
   await page.waitForTimeout(800);
   await page.keyboard.up('d');
   await page.keyboard.up('w');
-  const spin=await page.locator('#status strong').nth(2).textContent();
+  const spin=await page.locator('#status strong').nth(3).textContent();
   assert.ok(Number(spin)>0,'rotation produces angular momentum');
   const fuel=await page.locator('#status strong').nth(0).textContent();
   assert.ok(parseInt(fuel)<100,'thrust consumes fuel');
@@ -154,7 +163,7 @@ try {
   const reference=instance.exports;
   const expected={};
   for(const map of [0,32768]) {
-    reference.init(1024,map,0);
+    reference.init(1024,map,0,2);
     for(let tick=0;tick<120000;tick++) {
       new Uint8Array(reference.memory.buffer,2048,2).set([(tick*7+(tick>>5))&7,(tick*3+(tick>>7))&7]);
       reference.step(2048,1);
@@ -195,7 +204,7 @@ try {
       const s=instance.exports;
       const result=[];
       for(const map of [0,32768]) for(const cadence of [30,60,144]) {
-        s.init(1024,map,0);
+        s.init(1024,map,0,2);
         const start=performance.now();
         for(let tick=0;tick<120000;tick++) {
           new Uint8Array(s.memory.buffer,2048,2).set([(tick*7+(tick>>5))&7,(tick*3+(tick>>7))&7]);

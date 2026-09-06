@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {FlightInterpolation,FragmentInterpolation,PositionCorrection,projectilePose} from '../src/presentation.ts';
-function frame(x,y=100){const state=new Int32Array(2096);state[16]=x*65536;state[17]=y*65536;state[18]=65536;state[23]=3;return state;}
+function frame(x,y=100){const state=new Int32Array(2128);state[16]=x*65536;state[17]=y*65536;state[18]=65536;state[23]=3;return state;}
 function moving(tick){const state=frame(100+tick);state[0]=tick;return state;}
 test('moving shots stay centered on the nose on the ship render clock',()=>{
   for(const angle of [0,1024,2048,3072]){
@@ -12,7 +12,7 @@ test('moving shots stay centered on the nose on the ship render clock',()=>{
       const state=moving(t);state[16]=(100+t*8)*65536;state[17]=(100+t*3)*65536;
       state[18]=8*65536;state[19]=3*65536;state[20]=angle;
       if(t>10){const age=t-10;state.set([(180+20*dx+(8+12*dx)*age)*65536,(130+20*dy+(3+12*dy)*age)*65536,
-        (8+12*dx)*65536,(3+12*dy)*65536,120-age,0,1,0],48);}
+        (8+12*dx)*65536,(3+12*dy)*65536,120-age,0,1,0],80);}
       return state;
     };
     let state=make(0),visible=0;
@@ -33,16 +33,16 @@ test('moving shots stay centered on the nose on the ship render clock',()=>{
   }
 });
 test('shot rewind respects half-step rounding, expiry, debris and resets',()=>{
-  const state=moving(20);state.set([1000,2000,101,-103,119,0,1,0],48);
+  const state=moving(20);state.set([1000,2000,101,-103,119,0,1,0],80);
   assert.equal(projectilePose(state,0,19).x,900/65536);
   assert.equal(projectilePose(state,0,19).y,2102/65536);
   assert.equal(projectilePose(state,0,18).visible,false);
   assert.equal(projectilePose(state,0,20).x,1000/65536);
-  state[55]=0x10000000;assert.equal(projectilePose(state,0,20).visible,false);
-  state[55]=0;state[52]=0;assert.equal(projectilePose(state,0,20).visible,false);
+  state[87]=0x10000000;assert.equal(projectilePose(state,0,20).visible,false);
+  state[87]=0;state[84]=0;assert.equal(projectilePose(state,0,20).visible,false);
 });
 function debris(tick,x=tick,id=1,angle=tick*20){
-  const state=moving(tick);state.set([x*65536,100*65536,65536,0,186-tick,0,id,0x10000000|(angle<<5)],48);return state;
+  const state=moving(tick);state.set([x*65536,100*65536,65536,0,186-tick,0,id,0x10000000|(angle<<5)],80);return state;
 }
 test('fragment translation and rotation stay even at 144 Hz with jittered worker delivery',()=>{
   const motion=new FragmentInterpolation();let tick=0,state=debris(0),previous;
@@ -69,7 +69,7 @@ test('fragment rotation wraps, bounces stay within known positions and paused up
 test('fragment slot reuse, expiry, seeks and rollback corrections discard stale motion',()=>{
   const motion=new FragmentInterpolation();motion.sample(debris(10),0);
   const reused=motion.sample(debris(11,100,2),10);assert.equal(reused.has(1),false);assert.equal(reused.get(2).x,100);
-  const empty=debris(12);empty[52]=0;assert.equal(motion.sample(empty,20).size,0);
+  const empty=debris(12);empty[84]=0;assert.equal(motion.sample(empty,20).size,0);
   assert.equal(motion.sample(debris(0,50),30).get(1).x,50);
   assert.equal(motion.sample(debris(1,60),40,false,1).get(1).x,60);
   assert.equal(motion.sample(debris(2,70),50,true,1).get(1).x,70);

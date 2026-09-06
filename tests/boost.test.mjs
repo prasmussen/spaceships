@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 const binary=await readFile('public/simulation.wasm'),Q=65536;
-async function create(map=0){const {instance}=await WebAssembly.instantiate(binary);const s=instance.exports;s.init(1024,map,0);return {s,st:new Int32Array(s.memory.buffer,4096,2096)};}
+async function create(map=0){const {instance}=await WebAssembly.instantiate(binary);const s=instance.exports;s.init(1024,map,0,2);return {s,st:new Int32Array(s.memory.buffer,4096,2128)};}
 function step({s},buttons=0,n=1,player=0){const input=new Uint8Array(s.memory.buffer,2048,2);input.fill(0);input[player]=buttons;for(let i=0;i<n;i++)assert.equal(s.step(2048,1),1);}
 test('boost launches independently of thrust with fourfold acceleration and extra fuel cost',async()=>{
  const game=await create();step(game,16);assert.equal(game.st[19],3600-43200);assert.equal(game.st[22],6000-122);assert.equal(game.st[29],18);
@@ -30,5 +30,5 @@ test('boost excludes ships outside the cone and behind solid terrain',async()=>{
  }
 });
 test('active boost, recharge and held-key latch restore exactly from snapshots',async()=>{
- const game=await create();step(game,16);step(game,16,4);game.s.save_state(65536);step(game,16,130);const hash=game.s.state_hash();assert.equal(game.s.load_state(65536,8384),1);step(game,16,130);assert.equal(game.s.state_hash(),hash);
+ const game=await create();step(game,16);step(game,16,4);game.s.save_state(65536);step(game,16,130);const hash=game.s.state_hash();assert.equal(game.s.load_state(65536,8512),1);step(game,16,130);assert.equal(game.s.state_hash(),hash);
 });

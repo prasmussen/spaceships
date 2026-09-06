@@ -7,7 +7,7 @@ export const FRAGMENT_STRIDE=16;
 export class Effects {
   private deduper=new EventDeduper();
   private particles:Particle[]=[];
-  private state:Int32Array=new Int32Array(2096);
+  private state:Int32Array=new Int32Array(2128);
   private fragmentMotion=new FragmentInterpolation();
   private audio:AudioContext|undefined;
   private master:GainNode|undefined;
@@ -17,7 +17,7 @@ export class Effects {
   private explosionNoise:AudioBuffer|undefined;
   private settings:()=>{sound:boolean;particles:boolean};
   constructor(settings:()=>{sound:boolean;particles:boolean}){this.settings=settings;}
-  clear(){this.stopThrust();this.deduper.clear();this.particles=[];this.state=new Int32Array(2096);this.fragmentMotion=new FragmentInterpolation();}
+  clear(){this.stopThrust();this.deduper.clear();this.particles=[];this.state=new Int32Array(2128);this.fragmentMotion=new FragmentInterpolation();}
   unlock(){
     if(!this.settings().sound){this.stopThrust();if(this.master)this.master.gain.value=0;return;}
     try{if(!this.audio){this.audio=new AudioContext();this.master=this.audio.createGain();this.master.connect(this.audio.destination);}this.master!.gain.value=.12;void this.audio.resume().catch(()=>{});}catch{}
@@ -35,7 +35,7 @@ export class Effects {
     const audio=this.audio;
     let power=0;
     if(this.settings().sound&&audio?.state==='running'&&frame[1]<0){
-      for(let p=0;p<2;p++){const o=16+p*16;if(((buttons[p]&1)||frame[o+13]>0)&&frame[o+6]>0&&frame[o+7]>0)power+=(p===localSlot?.7:.25)*(frame[o+13]>0?1.5:1);}
+      for(let p=0;p<4;p++){const o=16+p*16;if(((buttons[p]&1)||frame[o+13]>0)&&frame[o+6]>0&&frame[o+7]>0)power+=(p===localSlot?.7:.25)*(frame[o+13]>0?1.5:1);}
     }
     if(!power||!audio){this.stopThrust();return;}
     if(!this.engine){
@@ -105,7 +105,7 @@ export class Effects {
     const motion=this.fragmentMotion.sample(state,now,reset,revision);
     let count=0;
     for(let i=0;i<256;i++){
-      const o=48+i*8,meta=state[o+7],life=state[o+4];
+      const o=80+i*8,meta=state[o+7],life=state[o+4];
       if(!meta||life<=0)continue;
       const shape=HULL_FRAGMENTS[meta&31];
       const visual=motion.get(state[o+6])!;

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -173,7 +174,7 @@ func TestInviteReadySignalingFinishAndRematch(t *testing.T) {
 	a := f.connect(t, f.guest(t), "eu")
 	b := f.connect(t, f.guest(t), "eu")
 	stranger := f.connect(t, f.guest(t), "eu")
-	send(t, a, map[string]any{"type": "create"})
+	send(t, a, map[string]any{"type": "create", "players": 2})
 	room := next(t, a, "room")
 	code := room["code"].(string)
 	send(t, b, map[string]any{"type": "join", "code": code})
@@ -187,14 +188,15 @@ func TestInviteReadySignalingFinishAndRematch(t *testing.T) {
 	if ma["slot"] != float64(0) || mb["slot"] != float64(1) || mb["match"].(map[string]any)["id"] != id {
 		t.Fatal("unstable slots or match")
 	}
-	send(t, stranger, map[string]any{"type": "signal", "matchId": id, "signal": map[string]string{"type": "offer"}})
+	send(t, stranger, map[string]any{"type": "signal", "recipient": 1, "matchId": id, "signal": map[string]string{"type": "offer"}})
 	next(t, stranger, "error")
-	send(t, a, map[string]any{"type": "signal", "matchId": id, "signal": map[string]string{"type": "offer", "sdp": "test"}})
+	send(t, a, map[string]any{"type": "signal", "recipient": 1, "matchId": id, "signal": map[string]string{"type": "offer", "sdp": "test"}})
 	signal := next(t, b, "signal")
 	if signal["sender"] != float64(0) || signal["matchId"] != id {
 		t.Fatal("signal not room scoped")
 	}
 	send(t, a, map[string]any{"type": "finish", "matchId": id, "winner": 0})
+	send(t, b, map[string]any{"type": "finish", "matchId": id, "winner": 0})
 	ended := next(t, b, "ended")
 	if ended["trust"] != "unverified" {
 		t.Fatal("trusted casual result")
@@ -221,17 +223,17 @@ func TestQueueCompatibilityRegionsAndCancellation(t *testing.T) {
 	bad.WASM = strings.Repeat("d", 64)
 	send(t, c, map[string]any{"type": "hello", "identity": bad, "region": "eu"})
 	next(t, c, "error")
-	send(t, c, map[string]any{"type": "queue"})
+	send(t, c, map[string]any{"type": "queue", "players": 2})
 	next(t, c, "error")
-	send(t, a, map[string]any{"type": "queue"})
+	send(t, a, map[string]any{"type": "queue", "players": 2})
 	next(t, a, "queued")
-	send(t, b, map[string]any{"type": "queue"})
+	send(t, b, map[string]any{"type": "queue", "players": 2})
 	next(t, b, "queued")
 	send(t, b, map[string]any{"type": "cancelQueue"})
 	next(t, b, "queueCancelled")
 	send(t, c, map[string]any{"type": "hello", "identity": f.hub.cfg.Identity, "region": "eu"})
 	next(t, c, "hello")
-	send(t, c, map[string]any{"type": "queue"})
+	send(t, c, map[string]any{"type": "queue", "players": 2})
 	ma := next(t, a, "match")
 	mc := next(t, c, "match")
 	if ma["match"].(map[string]any)["id"] != mc["match"].(map[string]any)["id"] {
@@ -247,7 +249,7 @@ func TestReconnectPreservesSlotAndCleanupRemovesAbandonedRoom(t *testing.T) {
 	f := setup(t)
 	cookie := f.guest(t)
 	a := f.connect(t, cookie, "eu")
-	send(t, a, map[string]any{"type": "create"})
+	send(t, a, map[string]any{"type": "create", "players": 2})
 	code := next(t, a, "room")["code"]
 	replacement := f.connect(t, cookie, "")
 	r := next(t, replacement, "room")
@@ -282,9 +284,9 @@ func TestMetricsAuthenticationAndBoundedReports(t *testing.T) {
 	f.hub.cfg.MetricsToken = "operator-test-token"
 	a := f.connect(t, f.guest(t), "eu")
 	b := f.connect(t, f.guest(t), "eu")
-	send(t, a, map[string]any{"type": "queue"})
+	send(t, a, map[string]any{"type": "queue", "players": 2})
 	next(t, a, "queued")
-	send(t, b, map[string]any{"type": "queue"})
+	send(t, b, map[string]any{"type": "queue", "players": 2})
 	id := next(t, a, "match")["match"].(map[string]any)["id"]
 	send(t, a, map[string]any{"type": "metrics", "matchId": id, "metrics": map[string]any{"connections": 2}})
 	next(t, a, "error")
@@ -341,13 +343,13 @@ func TestSharedGuestWindowsAndReconnect(t *testing.T) {
 	next(t, a, "welcome")
 	send(t, a, map[string]any{"type": "hello", "region": "eu", "identity": f.hub.cfg.Identity})
 	next(t, a, "hello")
-	send(t, a, map[string]any{"type": "queue"})
+	send(t, a, map[string]any{"type": "queue", "players": 2})
 	next(t, a, "queued")
 	b := connect(strings.Repeat("b", 32))
 	next(t, b, "welcome")
 	send(t, b, map[string]any{"type": "hello", "region": "eu", "identity": f.hub.cfg.Identity})
 	next(t, b, "hello")
-	send(t, b, map[string]any{"type": "queue"})
+	send(t, b, map[string]any{"type": "queue", "players": 2})
 	first := next(t, a, "match")
 	second := next(t, b, "match")
 	if first["match"].(map[string]any)["id"] != second["match"].(map[string]any)["id"] {
@@ -369,4 +371,114 @@ func TestSharedGuestWindowsAndReconnect(t *testing.T) {
 	if len(f.hub.clients) != 2 {
 		t.Fatal("cleanup incorrectly expired page instances")
 	}
+}
+
+func TestMultiplayerQueueSignalingFinishRematch(t *testing.T) {
+	for _, players := range []int{3, 4} {
+		t.Run(strconv.Itoa(players), func(t *testing.T) {
+			f := setup(t)
+			clients := make([]*websocket.Conn, players)
+			for id := range clients {
+				clients[id] = f.connect(t, f.guest(t), "eu")
+				send(t, clients[id], map[string]any{"type": "queue", "players": players})
+				if id < players-1 {
+					next(t, clients[id], "queued")
+				}
+			}
+			matches := make([]map[string]any, players)
+			for id, c := range clients {
+				m := next(t, c, "match")
+				if m["slot"] != float64(id) {
+					t.Fatal("unstable slot", m)
+				}
+				matches[id] = m["match"].(map[string]any)
+				if matches[id]["players"] != float64(players) {
+					t.Fatal("wrong count")
+				}
+			}
+			id := matches[0]["id"].(string)
+			send(t, clients[0], map[string]any{"type": "signal", "matchId": id, "recipient": players - 1, "sender": 2, "signal": map[string]any{"candidate": "test"}})
+			signal := next(t, clients[players-1], "signal")
+			if signal["sender"] != float64(0) {
+				t.Fatal("sender spoofed")
+			}
+			for _, recipient := range []int{-1, 0, players} {
+				send(t, clients[0], map[string]any{"type": "signal", "matchId": id, "recipient": recipient, "signal": map[string]string{"candidate": "test"}})
+				next(t, clients[0], "error")
+			}
+			send(t, clients[0], map[string]any{"type": "finish", "matchId": id, "winner": players - 1})
+			// A finish report does not dismantle transport before all players confirm.
+			f.hub.mu.Lock()
+			active := 0
+			for _, r := range f.hub.rooms {
+				if r.match != nil {
+					active++
+				}
+			}
+			f.hub.mu.Unlock()
+			if active != 1 {
+				t.Fatal("ended before all reports")
+			}
+			for _, c := range clients[1:] {
+				send(t, c, map[string]any{"type": "finish", "matchId": id, "winner": players - 1})
+			}
+			for _, c := range clients {
+				ended := next(t, c, "ended")
+				if ended["winner"] != float64(players-1) {
+					t.Fatal(ended)
+				}
+			}
+			for _, c := range clients {
+				send(t, c, map[string]any{"type": "rematch"})
+			}
+			for _, c := range clients {
+				m := next(t, c, "match")["match"].(map[string]any)
+				if m["id"] == id || m["players"] != float64(players) {
+					t.Fatal("invalid rematch", m)
+				}
+			}
+			send(t, clients[players-1], map[string]any{"type": "leave"})
+			for _, c := range clients[:players-1] {
+				if next(t, c, "ended")["reason"] != "disconnected" {
+					t.Fatal("missing disconnect")
+				}
+			}
+		})
+	}
+}
+
+func TestPlayerCountQueueIsolationAndInviteCapacity(t *testing.T) {
+	f := setup(t)
+	a := f.connect(t, f.guest(t), "eu")
+	b := f.connect(t, f.guest(t), "eu")
+	for _, count := range []int{0, 1, 5} {
+		send(t, a, map[string]any{"type": "queue", "players": count})
+		next(t, a, "error")
+	}
+	send(t, a, map[string]any{"type": "queue", "players": 3})
+	next(t, a, "queued")
+	send(t, b, map[string]any{"type": "queue", "players": 4})
+	next(t, b, "queued")
+	f.hub.mu.Lock()
+	queued := len(f.hub.queue)
+	rooms := len(f.hub.rooms)
+	f.hub.mu.Unlock()
+	if queued != 2 || rooms != 0 {
+		t.Fatal("mixed player counts matched")
+	}
+	send(t, a, map[string]any{"type": "create", "players": 4})
+	code := next(t, a, "room")["code"].(string)
+	send(t, b, map[string]any{"type": "join", "code": code})
+	next(t, b, "room")
+	for range 2 {
+		c := f.connect(t, f.guest(t), "eu")
+		send(t, c, map[string]any{"type": "join", "code": code})
+		state := next(t, c, "room")
+		if len(state["present"].([]any)) != 4 {
+			t.Fatal("wrong room size")
+		}
+	}
+	extra := f.connect(t, f.guest(t), "eu")
+	send(t, extra, map[string]any{"type": "join", "code": code})
+	next(t, extra, "error")
 }

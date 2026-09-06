@@ -21,7 +21,7 @@ export async function laboratory(binary:BufferSource,identity:Identity,condition
       }
       if(wall%20===0)for(const [tick,buttons]of peer.input[p])if(!peers[1-p].input[p].has(tick))queue.push({at:wall+Math.ceil(conditions.rtt*.03)+2,sender:p,tick,buttons});
     }
-    if(!outage){const due=queue.filter(packet=>packet.at<=wall).reverse();queue=queue.filter(packet=>packet.at>wall);for(const packet of due)peers[1-packet.sender].receive(packet.sender,packet.tick,packet.buttons);for(let p=0;p<2;p++)peers[p].acknowledge(peers[1-p].complete);}
+    if(!outage){const due=queue.filter(packet=>packet.at<=wall).reverse();queue=queue.filter(packet=>packet.at>wall);for(const packet of due)peers[1-packet.sender].receive(packet.sender,packet.tick,packet.buttons);for(let p=0;p<2;p++)peers[p].acknowledge(peers[1-p].complete,1-p);}
     if(peers.every(peer=>peer.tick===target&&peer.agreed>=target-1))break;
   }
   if(!peers.every(peer=>peer.tick===target&&peer.agreed>=target-1))throw Error('Laboratory failed to resume');

@@ -14,7 +14,7 @@ import (
 	"github.com/tetratelabs/wazero"
 )
 
-const StateBytes = 8384
+const StateBytes = 8512
 const MaxJSONBytes = 110 << 20
 
 type Identity struct {
@@ -27,6 +27,7 @@ type Identity struct {
 
 // Arrays decode numeric JSON bytes, never Go's base64 []byte representation.
 type Recording struct {
+	Players     int          `json:"players"`
 	Version     int          `json:"version"`
 	Identity    Identity     `json:"identity"`
 	Seed        uint32       `json:"seed"`
@@ -41,10 +42,10 @@ type Checkpoint struct {
 	State []int  `json:"state"`
 }
 type Result struct {
-	Ticks  int      `json:"ticks"`
-	Hash   string   `json:"hash"`
-	Winner int32    `json:"winner"`
-	Scores [2]int32 `json:"scores"`
+	Ticks  int     `json:"ticks"`
+	Hash   string  `json:"hash"`
+	Winner int32   `json:"winner"`
+	Scores []int32 `json:"scores"`
 }
 
 func Decode(reader io.Reader) (Recording, error) {
@@ -60,7 +61,7 @@ func Decode(reader io.Reader) (Recording, error) {
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return r, err
 	}
-	for _, key := range []string{"version", "identity", "seed", "mapMode", "initial", "inputs", "checkpoints"} {
+	for _, key := range []string{"version", "players", "identity", "seed", "mapMode", "initial", "inputs", "checkpoints"} {
 		if value, ok := fields[key]; !ok || bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
 			return r, fmt.Errorf("missing replay field %s", key)
 		}
@@ -85,13 +86,13 @@ func snapshot(values []int) ([]byte, error) {
 
 func Validate(ctx context.Context, wasm []byte, identity Identity, r Recording) (Result, error) {
 	var result Result
-	if r.Version != 1 || r.Identity != identity || identity.Protocol != 1 || identity.ABI != 1 {
+	if r.Version != 2 || r.Identity != identity || identity.Protocol != 2 || identity.ABI != 2 {
 		return result, fmt.Errorf("replay identity mismatch")
 	}
 	if fmt.Sprintf("%x", sha256.Sum256(wasm)) != identity.WASM {
 		return result, fmt.Errorf("WASM digest mismatch")
 	}
-	if (r.MapMode != 0 && r.MapMode != 32768) || len(r.Inputs) > 216000 || len(r.Checkpoints) > 3601 {
+	if (r.MapMode != 0 && r.MapMode != 32768 && r.MapMode != 32769) || r.Players < 2 || r.Players > 4 || len(r.Inputs) > 216000 || len(r.Checkpoints) > 3601 {
 		return result, fmt.Errorf("invalid replay bounds")
 	}
 	initial, err := snapshot(r.Initial)
@@ -99,8 +100,13 @@ func Validate(ctx context.Context, wasm []byte, identity Identity, r Recording) 
 		return result, err
 	}
 	for _, pair := range r.Inputs {
-		if len(pair) != 2 || pair[0] < 0 || pair[0] > 31 || pair[1] < 0 || pair[1] > 31 {
-			return result, fmt.Errorf("invalid paired input")
+		if len(pair) != r.Players {
+			return result, fmt.Errorf("invalid input vector length")
+		}
+		for _, buttons := range pair {
+			if buttons < 0 || buttons > 31 {
+				return result, fmt.Errorf("invalid input buttons")
+			}
 		}
 	}
 	previous := 0
@@ -136,7 +142,7 @@ func Validate(ctx context.Context, wasm []byte, identity Identity, r Recording) 
 		}
 		return values[0], nil
 	}
-	if v, err := call("init", 1024, uint64(r.MapMode), uint64(r.Seed)); err != nil || v != 1 {
+	if v, err := call("init", 1024, uint64(r.MapMode), uint64(r.Seed), uint64(r.Players)); err != nil || v != 1 {
 		return result, fmt.Errorf("simulation initialization failed: %v", err)
 	}
 	memory := module.Memory()
@@ -162,7 +168,11 @@ func Validate(ctx context.Context, wasm []byte, identity Identity, r Recording) 
 	}
 	checkpoint := 0
 	for tick, pair := range r.Inputs {
-		if !memory.Write(2048, []byte{byte(pair[0]), byte(pair[1])}) {
+		buttons := make([]byte, r.Players)
+		for id, value := range pair {
+			buttons[id] = byte(value)
+		}
+		if !memory.Write(2048, buttons) {
 			return result, fmt.Errorf("input outside memory")
 		}
 		if v, err := call("step", 2048, 1); err != nil || v != 1 {
@@ -193,6 +203,9 @@ func Validate(ctx context.Context, wasm []byte, identity Identity, r Recording) 
 	if err != nil {
 		return result, err
 	}
-	result = Result{Ticks: len(r.Inputs), Hash: strconv.FormatInt(int64(hash), 10), Winner: int32(binary.LittleEndian.Uint32(state[4:])), Scores: [2]int32{int32(binary.LittleEndian.Uint32(state[108:])), int32(binary.LittleEndian.Uint32(state[172:]))}}
+	result = Result{Ticks: len(r.Inputs), Hash: strconv.FormatInt(int64(hash), 10), Winner: int32(binary.LittleEndian.Uint32(state[4:])), Scores: make([]int32, r.Players)}
+	for id := range result.Scores {
+		result.Scores[id] = int32(binary.LittleEndian.Uint32(state[108+64*id:]))
+	}
 	return result, nil
 }
