@@ -12,13 +12,13 @@ values.forEach((v,i)=>bytes.writeInt32LE(v,i*4));
 const data = [...bytes].map(v=>'\\'+v.toString(16).padStart(2,'0')).join('');
 const tuningSource = await readFile('sim/tuning.json','utf8');
 const tuning = JSON.parse(tuningSource);
-const configKeys = ['version','tickRate','substeps','gravityPerSubstep','thrustPerSubstep','angularAccelerationPerSubstep','maxAngularSpeed','maxSpeed','maxPosition','fuelCapacity','hull','landingMaxVx','landingMaxVy','landingMaxAngle','landingMaxSpin','refuelPerSubstep','muzzleSpeed','projectileLifetime','weaponCooldown','spawnProtection'];
+const configKeys = ['version','tickRate','substeps','gravityPerSubstep','thrustPerSubstep','angularAccelerationPerSubstep','maxAngularSpeed','maxSpeed','maxPosition','fuelCapacity','hull','landingMaxVx','landingMaxVy','landingMaxAngle','landingMaxSpin','refuelPerSubstep','muzzleSpeed','projectileLifetime','weaponCooldown','spawnProtection','angularBrakingPerSubstep','movementDragDivisor'];
 const configBytes = Buffer.alloc(configKeys.length*4);
 for (const [i,key] of configKeys.entries()) {
   if (!Number.isSafeInteger(tuning[key]) || tuning[key] < 1 || tuning[key] > 1073741824) throw Error(`Invalid tuning: ${key}`);
   configBytes.writeInt32LE(tuning[key], i*4);
 }
-if (tuning.tickRate !== 60 || tuning.substeps !== 2 || tuning.maxSpeed > 4194304 || tuning.maxPosition > 1073741824 || tuning.maxAngularSpeed > 4096 || tuning.fuelCapacity > 1000000 || tuning.hull !== 3 || tuning.angularAccelerationPerSubstep > 64 || tuning.thrustPerSubstep > 65536 || tuning.gravityPerSubstep > 65536) throw Error('Tuning exceeds proven bounds');
+if (tuning.movementDragDivisor < 2 || tuning.movementDragDivisor > 65536 || tuning.tickRate !== 60 || tuning.substeps !== 2 || tuning.maxSpeed > 4194304 || tuning.maxPosition > 1073741824 || tuning.maxAngularSpeed > 4096 || tuning.fuelCapacity > 1000000 || tuning.hull !== 3 || tuning.angularBrakingPerSubstep > 64 || tuning.angularAccelerationPerSubstep > 64 || tuning.thrustPerSubstep > 65536 || tuning.gravityPerSubstep > 65536) throw Error('Tuning exceeds proven bounds');
 if(tuning.muzzleSpeed>786432 || tuning.projectileLifetime>120 || tuning.weaponCooldown>120 || tuning.spawnProtection>600)throw Error('Combat tuning exceeds proven bounds');
 const configData = [...configBytes].map(v=>'\\'+v.toString(16).padStart(2,'0')).join('');
 const caveSource = await readFile('sim/cave.json','utf8');

@@ -9,7 +9,7 @@ function approach(st){st[16]=450*Q;st[17]=1684*Q-1;st[18]=0;st[19]=30000;st[20]=
 test('grounded ships refuel, suppress rotation, and launch with thrust',async()=>{const {s,st}=await create();assert.equal(st[24],1);st[22]=3000;const y=st[17];step(s,4,10);assert.equal(st[21],0);assert.equal(st[17],y);assert.equal(st[22],3060);step(s,1);assert.equal(st[24],0);assert.ok(st[17]<y);assert.equal(st[22],3058);});
 for(const [name,index,limit]of [['horizontal speed',18,52428],['vertical speed',19,91750],['orientation',20,114],['spin',21,8]]) {
   for(const delta of [-1,0,1])test(`landing ${name} at limit ${delta>=0?'+':''}${delta}`,async()=>{
-    const {s,st}=await create();approach(st);st[index]=limit+delta-(index===19?1800:0);step(s);
+    const {s,st}=await create();approach(st);st[index]=limit+delta-(index===19?1800:0)+(index===21?8:0);if(index===18||index===19)st[index]+=Math.trunc(st[index]/511);step(s);
     assert.equal(st[23],delta<=0?3:0);assert.equal(st[24],delta<=0?1:0);assert.equal(st[27],delta<=0?0:-1);
   });
 }
@@ -19,10 +19,10 @@ test('maximum-speed flight hits the pillar before entering solid terrain',async(
 test('cave snapshots restore grounded and respawn futures exactly',async()=>{const {s,st}=await create();approach(st);st[20]=2048;step(s);s.save_state(65536);const before=s.state_hash();step(s,0,121);const after=s.state_hash();assert.equal(s.load_state(65536,8384),1);assert.equal(s.state_hash(),before);step(s,0,121);assert.equal(s.state_hash(),after);});
 for(const [name,index,limit]of [['leftward speed',18,52428],['counterclockwise spin',21,8],['wrapped orientation',20,114]]) {
   for(const delta of [-1,0,1])test(`landing ${name} magnitude limit ${delta}`,async()=>{
-    const {s,st}=await create();approach(st);st[index]=index===20?4096-(limit+delta):-(limit+delta);step(s);assert.equal(st[23],delta<=0?3:0);
+    const {s,st}=await create();approach(st);st[index]=index===20?4096-(limit+delta):-(limit+delta+(index===21?8:0));if(index===18)st[index]+=Math.trunc(st[index]/511);step(s);assert.equal(st[23],delta<=0?3:0);
   });
 }
 test('contact from below cannot land',async()=>{const {s,st}=await create();approach(st);st[17]=1710*Q;st[19]=-30000;step(s);assert.equal(st[23],0);assert.equal(st[24],0);});
-test('zero fuel in flight disables thrust but permits counter-steering',async()=>{const {s,st}=await create();approach(st);st[17]=1400*Q;st[19]=0;st[22]=0;step(s,5);assert.equal(st[19],3600);assert.equal(st[21],4);assert.equal(st[22],0);});
+test('zero fuel in flight disables thrust but permits counter-steering',async()=>{const {s,st}=await create();approach(st);st[17]=1400*Q;st[19]=0;st[22]=0;step(s,5);assert.equal(st[19],3597);assert.equal(st[21],4);assert.equal(st[22],0);});
 test('empty grounded tank refuels while grounded rotation stays suppressed',async()=>{const {s,st}=await create();st[22]=0;step(s,4);assert.equal(st[22],6);assert.equal(st[21],0);assert.equal(st[24],1);});
 test('invalid map bytes and floating grounded snapshots are rejected',async()=>{const {s}=await create();s.save_state(65536);new DataView(s.memory.buffer).setInt32(65536+64+4,1200*Q,true);assert.equal(s.load_state(65536,8384),0);new DataView(s.memory.buffer).setInt32(33792,0,true);assert.equal(s.init(1024,32768,0),0);});

@@ -52,10 +52,19 @@
     (local.set $spin (call $clamp (i32.add (local.get $spin)
       (i32.mul (i32.sub (i32.ne (i32.and (local.get $buttons) (i32.const 4)) (i32.const 0))
         (i32.ne (i32.and (local.get $buttons) (i32.const 2)) (i32.const 0))) (i32.const @angularAccelerationPerSubstep@))) (i32.const @maxAngularSpeed@)))
+    ;; Neutral steering brakes toward zero without reversing or consuming fuel.
+    (if (i32.eq (i32.ne (i32.and (local.get $buttons) (i32.const 2)) (i32.const 0))
+      (i32.ne (i32.and (local.get $buttons) (i32.const 4)) (i32.const 0))) (then
+      (local.set $spin (i32.sub (local.get $spin) (call $clamp (local.get $spin) (i32.const @angularBrakingPerSubstep@))))))
     (local.set $angle (i32.and (i32.add (i32.load offset=16 (local.get $p)) (i32.div_s (local.get $spin) (i32.const 2))) (i32.const 4095)))
     (local.set $vx (i32.load offset=8 (local.get $p)))
-    (local.set $vy (i32.add (i32.load offset=12 (local.get $p)) (i32.const @gravityPerSubstep@)))
+    (local.set $vy (i32.load offset=12 (local.get $p)))
     (local.set $fuel (i32.load offset=24 (local.get $p)))
+    ;; Gentle coasting drag, independent of rotation braking and without fuel use.
+    (if (i32.eqz (i32.and (i32.and (local.get $buttons) (i32.const 1)) (i32.gt_s (local.get $fuel) (i32.const 0)))) (then
+      (local.set $vx (i32.sub (local.get $vx) (i32.div_s (local.get $vx) (i32.const @movementDragDivisor@))))
+      (local.set $vy (i32.sub (local.get $vy) (i32.div_s (local.get $vy) (i32.const @movementDragDivisor@))))))
+    (local.set $vy (i32.add (local.get $vy) (i32.const @gravityPerSubstep@)))
     (if (i32.and (i32.and (local.get $buttons) (i32.const 1)) (i32.gt_s (local.get $fuel) (i32.const 0))) (then
       (local.set $vx (i32.add (local.get $vx) (call $mul (call $sin (local.get $angle)) (i32.const @thrustPerSubstep@))))
       (local.set $vy (i32.sub (local.get $vy) (call $mul (call $sin (i32.add (local.get $angle) (i32.const 1024))) (i32.const @thrustPerSubstep@))))
