@@ -1,0 +1,13 @@
+# Shell syntax. Installed config must be owned by root:wheel with mode 0600.
+# The rc script exports these variables before dropping server privileges.
+LISTEN_ADDR='127.0.0.1:8080'
+STATIC_DIR='/usr/local/share/spaceships/www'
+PUBLIC_ORIGINS='https://game.example.com'
+REGIONS='eu'
+# Trust only your reverse proxy's source address. This default is for a proxy
+# in the same VNET jail; change it for a host or separate proxy jail.
+TRUSTED_PROXY_CIDRS='127.0.0.1/32,::1/128'
+STUN_URLS=''
+TURN_URLS=''
+TURN_SECRET=''
+METRICS_TOKEN=''

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"cavern-duel/internal/replay"
+	"spaceships/internal/replay"
 	"context"
 	"encoding/json"
 	"flag"

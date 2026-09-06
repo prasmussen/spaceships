@@ -1,4 +1,4 @@
-module cavern-duel
+module spaceships
 
 go 1.23.0
 

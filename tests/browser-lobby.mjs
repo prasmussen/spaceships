@@ -34,7 +34,7 @@ export async function checkLobby(browser,turn){
         ws.send(JSON.stringify({type:'hello',region:'eu',identity:config.identity}));return true;
       });assert.equal(ok,true);
       await page.waitForFunction(()=>window.lobbyMessages.some(m=>m.type==='hello'));
-      const cookies=await context.cookies();assert.ok(cookies.some(c=>c.name==='cavern_guest'&&c.httpOnly&&c.sameSite==='Strict'));
+      const cookies=await context.cookies();assert.ok(cookies.some(c=>c.name==='spaceships_guest'&&c.httpOnly&&c.sameSite==='Strict'));
     }
     const send=(page,message)=>page.evaluate(message=>window.lobbySocket.send(JSON.stringify(message)),message);
     const wait=(page,type)=>page.waitForFunction(type=>window.lobbyMessages.some(m=>m.type===type),type);

@@ -9,8 +9,12 @@ try{
  page.setDefaultTimeout(15000);
  page.on('pageerror',e=>errors.push(String(e)));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  await page.goto(server.resolvedUrls.local[0]);
+ assert.equal(await page.title(),'Spaceships');
+ assert.equal(await page.locator('h1').textContent(),'Spaceships');
+ assert.equal(await page.locator('#online-panel').getAttribute('aria-label'),'Online multiplayer');
+ await page.screenshot({path:'artifacts/spaceships-home.png'});
  // Migrate an existing layout whose thrust key already uses the new default E.
- await page.evaluate(()=>{localStorage.removeItem('cavern-controls-v3');localStorage.setItem('cavern-controls-v2',JSON.stringify(['KeyE','KeyA','KeyD','Space','ShiftLeft']));});
+ await page.evaluate(()=>{localStorage.removeItem('spaceships-controls-v3');localStorage.setItem('spaceships-controls-v2',JSON.stringify(['KeyE','KeyA','KeyD','Space','ShiftLeft']));});
  await page.reload();await page.locator('#local-menu summary').click();await page.getByRole('button',{name:'Landing course',exact:true}).click();
  const shield=page.locator('#status span').filter({hasText:'SHIELD'});
  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('ENERGY'));

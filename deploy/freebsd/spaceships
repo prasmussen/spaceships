@@ -1,0 +1,45 @@
+#!/bin/sh
+# PROVIDE: spaceships
+# REQUIRE: LOGIN NETWORKING syslogd
+# KEYWORD: shutdown
+#
+# /etc/rc.conf: spaceships_enable="YES"
+# Optional: spaceships_config, spaceships_run_user, spaceships_program.
+
+. /etc/rc.subr
+
+name="spaceships"
+rcvar="spaceships_enable"
+load_rc_config "$name"
+: ${spaceships_enable:="NO"}
+: ${spaceships_config:="/usr/local/etc/spaceships.conf"}
+: ${spaceships_run_user:="spaceships"}
+: ${spaceships_program:="/usr/local/libexec/spaceships/spaceships"}
+
+command="/usr/sbin/daemon"
+procname="/usr/sbin/daemon"
+# Track the supervisor so stop does not cause a child restart.
+pidfile="/var/run/${name}.pid"
+command_args="-c -f -S -T ${name} -R 5 -P ${pidfile} -u ${spaceships_run_user} ${spaceships_program}"
+required_files="${spaceships_config} ${spaceships_program}"
+start_precmd="spaceships_prestart"
+
+spaceships_prestart()
+{
+    # This file is root-owned shell configuration; secrets stay out of argv.
+    set -a
+    . "${spaceships_config}"
+    set +a
+    : ${STATIC_DIR:="/usr/local/share/spaceships/www"}
+    export STATIC_DIR
+    if [ ! -x "${spaceships_program}" ] || [ ! -r "${STATIC_DIR}/build.json" ] || [ ! -r "${STATIC_DIR}/simulation.wasm" ]; then
+        warn "Missing server or web assets; install a complete Spaceships bundle"
+        return 1
+    fi
+    if ! id "${spaceships_run_user}" >/dev/null 2>&1; then
+        warn "Missing service account: ${spaceships_run_user}"
+        return 1
+    fi
+}
+
+run_rc_command "$1"

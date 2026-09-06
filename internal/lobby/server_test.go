@@ -123,7 +123,7 @@ func TestSessionOriginExpiryAndTURN(t *testing.T) {
 		t.Fatal(res.StatusCode)
 	}
 	cookie := f.guest(t)
-	if !cookie.HttpOnly || cookie.SameSite != http.SameSiteStrictMode || cookie.MaxAge <= 0 {
+	if cookie.Name != "spaceships_guest" || !cookie.HttpOnly || cookie.SameSite != http.SameSiteStrictMode || cookie.MaxAge <= 0 {
 		t.Fatal("unsafe cookie attributes")
 	}
 	req, _ = http.NewRequest("GET", f.server.URL+"/api/config", nil)

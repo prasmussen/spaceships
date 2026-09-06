@@ -8,10 +8,10 @@ import {randomBytes} from 'node:crypto';
 import assert from 'node:assert/strict';
 const exec=promisify(execFile);
 export async function checkDeployment(browser){
-  const directory=await mkdtemp(join(tmpdir(),'cavern-https-')),file=join(directory,'test.env'),contexts=[];
+  const directory=await mkdtemp(join(tmpdir(),'spaceships-https-')),file=join(directory,'test.env'),contexts=[];
   const values={SITE_ADDRESS:'localhost',PUBLIC_ORIGIN:'https://localhost:18443',BIND_ADDRESS:'127.0.0.1',HTTP_PORT:'18080',HTTPS_PORT:'18443',TLS_CONFIG:'tls internal',METRICS_TOKEN:randomBytes(32).toString('hex'),REGIONS:'eu',TURN_URLS:'',TURN_SECRET:''};
   await writeFile(file,Object.entries(values).map(([key,value])=>`${key}=${value}`).join('\n'),{mode:0o600});
-  const args=['compose','--project-name',`cavern-https-test-${process.pid}`,'--env-file',file,'-f','deploy/compose.yml'];
+  const args=['compose','--project-name',`spaceships-https-test-${process.pid}`,'--env-file',file,'-f','deploy/compose.yml'];
   const compose=(extra)=>exec('docker',[...args,...extra],{env:{...process.env,...values},timeout:180000,maxBuffer:8*1024*1024});
   try{
     await compose(['up','--build','-d']);
@@ -32,7 +32,7 @@ export async function checkDeployment(browser){
       await page.getByRole('button',{name:'Cancel search',exact:true}).click();
       await page.waitForFunction(()=>document.querySelector('#online-status').textContent.includes('Search cancelled'));
       await page.waitForFunction(()=>!document.querySelector('#queue-join').disabled);
-      const cookies=await context.cookies();assert.ok(cookies.some(c=>c.name==='cavern_guest'&&c.secure&&c.httpOnly&&c.sameSite==='Strict'));
+      const cookies=await context.cookies();assert.ok(cookies.some(c=>c.name==='spaceships_guest'&&c.secure&&c.httpOnly&&c.sameSite==='Strict'));
     }
     const response=await contexts[0].request.get(values.PUBLIC_ORIGIN+'/build.json');
     assert.match(response.headers()['cache-control'],/no-cache/);

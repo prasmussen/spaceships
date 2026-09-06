@@ -35,7 +35,7 @@ try {
       }
     };
     if(!sessionStorage.getItem('controls-migration-seeded')){
-      localStorage.setItem('cavern-controls',JSON.stringify(['KeyW','KeyA','KeyD','Space','ArrowUp','ArrowLeft','ArrowRight','Enter','KeyT']));
+      localStorage.setItem('spaceships-controls',JSON.stringify(['KeyW','KeyA','KeyD','Space','ArrowUp','ArrowLeft','ArrowRight','Enter','KeyT']));
       sessionStorage.setItem('controls-migration-seeded','true');
     }
     window.testSounds=0;window.testThrustSounds=0;
@@ -70,7 +70,7 @@ try {
   await page.getByRole('button',{name:'Open game menu'}).click();
   await page.getByRole('button',{name:'Controls',exact:true}).click();
   assert.equal(await page.getByLabel('Sound effects',{exact:true}).isChecked(),true);
-  assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('cavern-controls-v2'))),['KeyW','KeyA','KeyD','Space','ShiftLeft']);
+  assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('spaceships-controls-v3'))),['KeyW','KeyA','KeyD','Space','ShiftLeft','KeyE']);
   assert.equal(await page.locator('#controls-panel fieldset').count(),1);
   assert.equal(await page.getByRole('button',{name:'Restart or rematch',exact:true}).count(),0);
   await page.getByRole('button',{name:'Thrust',exact:true}).click();
@@ -132,7 +132,7 @@ try {
   await page.keyboard.down('w');await page.waitForTimeout(400);await page.keyboard.up('w');
   assert.match(await page.locator('#status').textContent(),/IN FLIGHT/);
   await page.screenshot({path:'artifacts/landing.png'});
-  assert.equal(await page.getByRole('button',{name:'Local duel',exact:true}).count(),0);
+  assert.equal(await page.getByRole('button',{name:'Local multiplayer',exact:true}).count(),0);
   await page.keyboard.press('r');
   await page.keyboard.down('ArrowUp');await page.waitForTimeout(150);await page.keyboard.up('ArrowUp');
   assert.match(await page.locator('#status').textContent(),/IN FLIGHT/);
@@ -190,7 +190,7 @@ try {
           if(!location||!url)continue;
           try{await access(join(location,'INSTALLATION_COMPLETE'));continue;}catch{}
           console.log(`Provisioning ${block.split('\n')[0]} with native extraction…`);
-          const temporary=await mkdtemp(join(tmpdir(),'cavern-browser-'));
+          const temporary=await mkdtemp(join(tmpdir(),'spaceships-browser-'));
           const zip=join(temporary,'browser.zip');
           await exec('/usr/bin/curl',['--fail','--location','--retry','2','--max-time','180','--output',zip,url],{timeout:200000});
           await mkdir(location,{recursive:true});

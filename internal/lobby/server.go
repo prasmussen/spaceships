@@ -195,7 +195,7 @@ func (s *Server) Handler() http.Handler {
 	})
 }
 func (s *Server) token(r *http.Request) string {
-	c, err := r.Cookie("cavern_guest")
+	c, err := r.Cookie("spaceships_guest")
 	if err != nil {
 		return ""
 	}
@@ -252,7 +252,7 @@ func (s *Server) issueSession(w http.ResponseWriter, r *http.Request) {
 		s.sessions[token] = session{expires: now.Add(6 * time.Hour)}
 	}
 	expires := s.sessions[token].expires
-	http.SetCookie(w, &http.Cookie{Name: "cavern_guest", Value: token, Path: "/", HttpOnly: true, Secure: strings.HasPrefix(r.Header.Get("Origin"), "https://"), SameSite: http.SameSiteStrictMode, Expires: expires, MaxAge: int(expires.Sub(s.cfg.Now()).Seconds())})
+	http.SetCookie(w, &http.Cookie{Name: "spaceships_guest", Value: token, Path: "/", HttpOnly: true, Secure: strings.HasPrefix(r.Header.Get("Origin"), "https://"), SameSite: http.SameSiteStrictMode, Expires: expires, MaxAge: int(expires.Sub(s.cfg.Now()).Seconds())})
 	jsonResponse(w, map[string]any{"guest": true, "expires": expires})
 }
 func (s *Server) configuration(w http.ResponseWriter, r *http.Request) {

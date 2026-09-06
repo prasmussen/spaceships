@@ -8,7 +8,7 @@ Gameplay uses an unordered DataChannel with `maxRetransmits: 0`. Each binary mes
 
 | Offset | Type | Meaning |
 | --- | --- | --- |
-| 0 | u16 LE | magic `0x4344` |
+| 0 | u16 LE | magic `0x5353` |
 | 2 | u8 | protocol 2 |
 | 3 | u8 | sender slot 0–3 |
 | 4 | u32 LE | session epoch |

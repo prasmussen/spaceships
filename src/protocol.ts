@@ -6,7 +6,7 @@ export interface InputPacket {epoch:number;sender:number;start:number;ack:number
 export function encodeInput(packet:InputPacket):ArrayBuffer {
   validateFields(packet);
   const buffer=new ArrayBuffer(20+packet.frames.length),v=new DataView(buffer);
-  v.setUint16(0,0x4344,true);v.setUint8(2,PROTOCOL);v.setUint8(3,packet.sender);
+  v.setUint16(0,0x5353,true);v.setUint8(2,PROTOCOL);v.setUint8(3,packet.sender);
   v.setUint32(4,packet.epoch,true);v.setUint32(8,packet.start,true);v.setInt32(12,packet.ack,true);v.setUint8(16,packet.frames.length);
   new Uint8Array(buffer,20).set(packet.frames);return buffer;
 }
@@ -16,7 +16,7 @@ function validateFields(p:InputPacket){
 export function decodeInput(buffer:ArrayBuffer,epoch:number,remote:number,tick:number):InputPacket {
   if(!(buffer instanceof ArrayBuffer)||buffer.byteLength<21||buffer.byteLength>28)throw new ProtocolError('Invalid gameplay packet size');
   const v=new DataView(buffer),count=v.getUint8(16);
-  if(v.getUint16(0,true)!==0x4344||v.getUint8(2)!==PROTOCOL||v.getUint8(17)||v.getUint16(18,true)||buffer.byteLength!==20+count)throw new ProtocolError('Invalid gameplay packet header');
+  if(v.getUint16(0,true)!==0x5353||v.getUint8(2)!==PROTOCOL||v.getUint8(17)||v.getUint16(18,true)||buffer.byteLength!==20+count)throw new ProtocolError('Invalid gameplay packet header');
   const packet:InputPacket={epoch:v.getUint32(4,true),sender:v.getUint8(3),start:v.getUint32(8,true),ack:v.getInt32(12,true),frames:[...new Uint8Array(buffer,20)]};
   validateFields(packet);
   if(packet.epoch!==epoch||packet.sender!==remote)throw new ProtocolError('Gameplay epoch or ownership mismatch');

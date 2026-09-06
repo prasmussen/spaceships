@@ -2,7 +2,7 @@
   ;; Fixed memory: ABI 0, config 1024, inputs 2048, state 4096 (8512 bytes),
   ;; snapshot staging 65536, frame 81920, checked-in trigonometry 16384.
   (memory (export "memory") 4 4)
-  (data (i32.const 0) "CDUL\02\00\00\00\00\10\00\00\40\21\00\00\00\08\00\00\00\00\01\00\00\40\01\00\04\00\00\00")
+  (data (i32.const 0) "SHIP\02\00\00\00\00\10\00\00\40\21\00\00\00\08\00\00\00\00\01\00\00\40\01\00\04\00\00\00")
   ;; MAP_DATA
   ;; EVENTS
   ;; DEBRIS

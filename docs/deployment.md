@@ -1,5 +1,7 @@
 # HTTPS/WSS deployment
 
+For a native FreeBSD jail without Docker, use [the FreeBSD deployment guide](freebsd.md).
+
 `Dockerfile` builds the handwritten WASM and frontend with pinned Node, then compiles the Go service with pinned Go. Image digests fix both build environments. The final image contains the static site and a Go binary, runs as a non-root user, and needs no writable filesystem. Startup verifies the served WASM digest.
 
 `deploy/compose.yml` places Caddy in front of the app. Only Caddy publishes ports. Caddy manages public certificates and proxies WebSocket upgrades; see its [automatic HTTPS](https://caddyserver.com/docs/automatic-https) and [reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy) documentation.

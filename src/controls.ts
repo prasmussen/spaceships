@@ -1,3 +1,4 @@
+import {migratePreferences} from './preferences';
 const defaults=['KeyW','KeyA','KeyD','Space','ShiftLeft','KeyE'];
 const arrows=['ArrowUp','ArrowLeft','ArrowRight'];
 const actions=['Thrust','Rotate left','Rotate right','Fire','Boost','Shield'];
@@ -12,9 +13,10 @@ export class Controls {
   private output=document.createElement('output');
   private buttons:HTMLButtonElement[]=[];
   constructor(clear:()=>void){
-    try{let saved=JSON.parse(localStorage.getItem('cavern-controls-v3')??localStorage.getItem('cavern-controls-v2')??localStorage.getItem('cavern-controls')??'null');if(Array.isArray(saved)){if(!localStorage.getItem('cavern-controls-v3')&&!localStorage.getItem('cavern-controls-v2'))saved=saved.slice(0,4);if(saved.length===4)saved.push(['ShiftLeft','ShiftRight','Enter'].find(c=>!saved.includes(c)));if(saved.length===5)saved.push(['KeyE','KeyQ','KeyF','Enter'].find(c=>!saved.includes(c)));if(saved.length===6&&saved.every((c:unknown)=>typeof c==='string'&&supported.test(c))&&new Set(saved).size===6){this.codes=saved;localStorage.setItem('cavern-controls-v3',JSON.stringify(saved));}}}catch{}
-    try{const value=localStorage.getItem('cavern-reduced-motion');if(value==='true'||value==='false')this.reducedMotion=value==='true';}catch{}
-    try{this.sound=localStorage.getItem('cavern-sound')!=='false';}catch{}
+    try{migratePreferences(localStorage);}catch{}
+    try{let saved=JSON.parse(localStorage.getItem('spaceships-controls-v3')??localStorage.getItem('spaceships-controls-v2')??localStorage.getItem('spaceships-controls')??'null');if(Array.isArray(saved)){if(!localStorage.getItem('spaceships-controls-v3')&&!localStorage.getItem('spaceships-controls-v2'))saved=saved.slice(0,4);if(saved.length===4)saved.push(['ShiftLeft','ShiftRight','Enter'].find(c=>!saved.includes(c)));if(saved.length===5)saved.push(['KeyE','KeyQ','KeyF','Enter'].find(c=>!saved.includes(c)));if(saved.length===6&&saved.every((c:unknown)=>typeof c==='string'&&supported.test(c))&&new Set(saved).size===6){this.codes=saved;localStorage.setItem('spaceships-controls-v3',JSON.stringify(saved));}}}catch{}
+    try{const value=localStorage.getItem('spaceships-reduced-motion');if(value==='true'||value==='false')this.reducedMotion=value==='true';}catch{}
+    try{this.sound=localStorage.getItem('spaceships-sound')!=='false';}catch{}
     this.dialog.id='controls-panel';this.dialog.setAttribute('aria-labelledby','controls-title');
     const title=document.createElement('h2');title.id='controls-title';title.textContent='Controls';
     const intro=document.createElement('p');intro.textContent='Select an action, then press a key. Escape cancels. Each action needs a different key. Up also thrusts; Left and Right also rotate, unless assigned to another action. These controls apply to your ship in practice and online matches.';
@@ -24,9 +26,9 @@ export class Controls {
     for(let a=0;a<6;a++)group.append(this.binding(a,actions[a],actions[a]));
     this.dialog.append(group);
     const motionLabel=document.createElement('label'),motion=document.createElement('input');motion.type='checkbox';motion.checked=this.reducedMotion;motionLabel.append(motion,' Reduce camera motion');this.dialog.append(motionLabel);
-    motion.onchange=()=>{this.reducedMotion=motion.checked;try{localStorage.setItem('cavern-reduced-motion',String(motion.checked));}catch{}clear();};
+    motion.onchange=()=>{this.reducedMotion=motion.checked;try{localStorage.setItem('spaceships-reduced-motion',String(motion.checked));}catch{}clear();};
     const soundLabel=document.createElement('label'),sound=document.createElement('input');sound.type='checkbox';sound.checked=this.sound;soundLabel.append(sound,' Sound effects');this.dialog.append(soundLabel);
-    sound.onchange=()=>{this.sound=sound.checked;try{localStorage.setItem('cavern-sound',String(sound.checked));}catch{}};
+    sound.onchange=()=>{this.sound=sound.checked;try{localStorage.setItem('spaceships-sound',String(sound.checked));}catch{}};
     this.output.setAttribute('aria-live','polite');this.dialog.append(this.output);
     const reset=document.createElement('button');reset.textContent='Restore default controls';reset.onclick=()=>{this.codes=[...defaults];this.pending=-1;this.save();};
     const close=document.createElement('button');close.textContent='Done';close.onclick=()=>this.dialog.close();this.dialog.append(reset,close);
@@ -57,7 +59,7 @@ export class Controls {
     button.setAttribute('aria-label',name);button.onclick=()=>{this.pending=index;this.output.textContent=`Press a key for ${name}.`;this.refresh();};
     this.buttons[index]=button;row.append(caption,button);return row;
   }
-  private save(){this.output.textContent='Controls saved.';try{localStorage.setItem('cavern-controls-v3',JSON.stringify(this.codes));}catch{this.output.textContent='Controls applied for this visit; browser storage is unavailable.';}this.refresh();}
+  private save(){this.output.textContent='Controls saved.';try{localStorage.setItem('spaceships-controls-v3',JSON.stringify(this.codes));}catch{this.output.textContent='Controls applied for this visit; browser storage is unavailable.';}this.refresh();}
   private refresh(){
     this.buttons.forEach((button,i)=>{button.textContent=this.pending===i?'Press a key…':label(this.codes[i]);button.setAttribute('aria-pressed',String(this.pending===i));});
     const footer=document.querySelector('#controls-help')!;

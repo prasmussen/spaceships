@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"cavern-duel/internal/lobby"
+	"spaceships/internal/lobby"
 )
 
 func env(key, fallback string) string {
@@ -67,7 +67,7 @@ func main() {
 		defer cancel()
 		_ = server.Shutdown(shutdown)
 	}()
-	log.Printf("Cavern Duel serving %s on %s", static, server.Addr)
+	log.Printf("Spaceships serving %s on %s", static, server.Addr)
 	if err = server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}

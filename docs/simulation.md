@@ -8,7 +8,7 @@ One fixed 256 KiB memory; no imports and no growth.
 
 | Address | Contents |
 | --- | --- |
-| 0 | 32-byte ABI metadata: magic CDUL, version, state address/size, input address, snapshot staging address, frame address, maximum player count (4) |
+| 0 | 32-byte ABI metadata: magic SHIP, version, state address/size, input address, snapshot staging address, frame address, maximum player count (4) |
 | 1024 | Frozen tuning configuration, signed little-endian i32 fields in build-script order |
 | 2048 | Up to 120 consecutive input vectors with a stride equal to the active player count, one byte per player |
 | 4096 | 8512-byte canonical authoritative state |
