@@ -1,0 +1,19 @@
+{
+  "name": "cavern-duel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build:sim": "node scripts/build-sim.mjs",
+    "build": "npm run build:sim && tsc --noEmit && vite build",
+    "test": "npm run build:sim && node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.58.2",
+    "@webgpu/types": "0.1.64",
+    "typescript": "5.9.3",
+    "vite": "7.3.6",
+    "wabt": "1.0.37"
+  }
+}

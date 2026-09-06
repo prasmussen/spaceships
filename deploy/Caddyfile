@@ -1,0 +1,12 @@
+{$SITE_ADDRESS} {
+	{$TLS_CONFIG}
+	encode zstd gzip
+	@build path / /index.html /build.json /simulation.wasm
+	header @build Cache-Control "no-cache"
+	header X-Content-Type-Options nosniff
+	header Referrer-Policy same-origin
+	header X-Frame-Options DENY
+	reverse_proxy app:8080 {
+		header_up X-Real-IP {remote_host}
+	}
+}

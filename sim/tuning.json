@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "tickRate": 60,
+  "substeps": 2,
+  "gravityPerSubstep": 1800,
+  "thrustPerSubstep": 5400,
+  "angularAccelerationPerSubstep": 2,
+  "maxAngularSpeed": 96,
+  "maxSpeed": 4194304,
+  "maxPosition": 1073741824,
+  "fuelCapacity": 6000,
+  "hull": 3,
+  "landingMaxVx": 52428,
+  "landingMaxVy": 91750,
+  "landingMaxAngle": 114,
+  "landingMaxSpin": 8,
+  "refuelPerSubstep": 3,
+  "muzzleSpeed": 786432,
+  "projectileLifetime": 120,
+  "weaponCooldown": 8,
+  "spawnProtection": 90
+}

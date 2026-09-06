@@ -1,0 +1,160 @@
+# Head-On-inspired browser game
+
+## Direction and architecture
+
+Build a two-player spaceship deathmatch in a scrolling cave, with downward gravity, persistent linear and angular momentum, strict landings, and static terrain. Prove that flying, counter-steering, landing, and shooting are enjoyable before introducing network transport.
+
+Initial release: desktop keyboard controls, WebGPU-capable browsers, guest sessions, invite rooms, and a casual matchmaking queue. No persistent accounts, ranked results, terrain destruction, or exact recreation of original assets.
+
+| Component | Responsibility |
+|---|---|
+| Handwritten WAT → WASM | All gameplay: physics, collision, fuel, weapons, damage, landing, respawns, scoring, deterministic state and events |
+| TypeScript simulation worker | Fixed-tick scheduling, input history, prediction, rollback orchestration, snapshot storage and replay playback |
+| TypeScript main thread | Input capture, WebRTC, UI, audio, camera and render scheduling |
+| WebGPU + WGSL | Terrain, ships, projectiles, particles, lighting and compositing |
+| Go service | Guest sessions, lobbies, queue, signaling, match configuration and lifecycle |
+| STUN/TURN infrastructure | Direct connection discovery and relayed DataChannel connectivity |
+
+The WASM simulation defines gameplay truth on both peers. Neither peer is a trusted competitive authority. Go coordinates casual matches initially; future validation executes the same WASM artifact.
+
+Use TypeScript with Vite, handwritten WGSL, Go’s HTTP server, and pinned WABT tooling to assemble and validate WAT. WABT explicitly provides `wat2wasm` and `wasm-validate`; it does not require writing simulation code in another language. [WABT](https://github.com/WebAssembly/wabt)
+
+## Simulation and gameplay
+
+### Deterministic foundation
+
+- Run at **60 fixed ticks per second**, independent of rendering. Use two fixed physics substeps per tick; input remains constant across both.
+- Use signed **Q16.16 fixed-point integers** for spatial quantities, integer angular units wrapping at one turn, and `i64` intermediate arithmetic. Define rounding and saturation explicitly.
+- Store velocity and acceleration in tick-based units. Use semi-implicit Euler: update velocity before position, angular velocity before orientation.
+- Use a checked-in integer sine/cosine table. No runtime floating-point math, clock access, browser callbacks, or GPU calculations in gameplay.
+- Validate map dimensions and parameter bounds so collision intermediates cannot overflow. Cap extreme speeds well above normal flight speeds.
+- Fix iteration order, collision tie-breaking, entity allocation, and event ordering. Use stable entity IDs and fixed-capacity pools; begin with two ships and 256 projectiles.
+- Avoid gameplay randomness initially. Any later randomness uses a specified integer PRNG whose state is included in snapshots.
+
+Integer arithmetic makes bitwise state comparison straightforward. WASM floating-point operations have specified NaN nondeterminism, so byte-identical state should not depend on unconstrained floating-point results. [WebAssembly nondeterminism](https://github.com/WebAssembly/design/blob/main/Nondeterminism.md)
+
+### Flight, landing and combat
+
+- Controls: thrust, rotate left/right, and fire. Opposing rotation inputs cancel. Releasing rotation preserves angular velocity; counter-steering stops it.
+- Thrust consumes fuel; rotation remains available at zero fuel. No passive drag or automatic stabilization.
+- Fuel exhaustion disables thrust immediately. Safe landing on the player’s own base restores fuel at a fixed rate.
+- Landing requires contact from above, the ship footprint inside the pad, and acceptable horizontal speed, downward speed, orientation error, and angular speed.
+- Valid landing enters an explicit grounded state with zero velocity. Thrust launches the ship; grounded rotation is suppressed.
+- All other terrain contact destroys the ship. The opposing base does not refuel or provide a safe landing.
+- Start with one rapid projectile weapon: fixed cooldown, finite lifetime, and muzzle velocity added to the ship’s velocity. Three hits destroy a full-health ship.
+- Ship bodies use circular collision footprints aligned with the visible hull’s scale. Swept circle-versus-terrain tests prevent tunneling; landing adds orientation and pad-footprint checks.
+- Projectiles use swept segment tests against terrain and moving ship circles. Resolve earliest contact with integer time-of-impact arithmetic and stable ID tie-breaking.
+- Ships pass through one another in v1; ramming is deferred.
+- Deathmatch ends at five kills. Terrain crashes deduct one point, allowing negative scores. Simultaneous winning scores continue until one player leads.
+- Respawn after two seconds at the owner’s base with full fuel and hull. Brief spawn protection ends upon firing or leaving the pad.
+
+Collect all same-tick damage before applying deaths so player iteration order cannot prevent trades.
+
+Physics and landing thresholds live in a versioned tuning configuration. Tune them during flight milestones, then freeze the exact configuration for each match and replay.
+
+### Terrain and memory interface
+
+Use one hand-authored cave containing broad practice areas, narrow routes, two horizontal base pads, and several combat approaches. Store collision as quantized solid polygons and derive render geometry from the same source. A static uniform grid accelerates collision queries.
+
+Keep the WAT module small and explicit. A build script may concatenate named WAT fragments and generate memory offsets or static tables; gameplay remains handwritten WAT.
+
+Expose a versioned ABI:
+
+| Export | Purpose |
+|---|---|
+| `memory` | Fixed-size shared address space between WASM and its TS host |
+| `abi_info()` | Pointer to layout/version metadata |
+| `init(config_ptr, map_ptr, seed)` | Validate inputs and initialize gameplay |
+| `step(input_ptr, tick_count)` | Consume consecutive paired-player input records |
+| `save_state(dst_ptr)` / `load_state(src_ptr, length)` | Canonical snapshot serialization and validated restoration |
+| `state_hash()` | Deterministic 64-bit diagnostic hash |
+| `write_frame(dst_ptr)` | Contiguous render records and gameplay events |
+
+Separate immutable map/configuration, authoritative mutable state, scratch memory, input buffers, and presentation output. Snapshots include every gameplay-relevant field, including cooldowns, respawn timers, grounded state and pool allocation state; exclude scratch and cosmetic data.
+
+No per-entity boundary calls, JS imports during stepping, or runtime memory growth. The worker reads linear memory in bulk and transfers compact presentation buffers to the main thread. Start without `SharedArrayBuffer`.
+
+## Rollback, networking and backend
+
+### Input synchronization
+
+Both peers execute both ships. Only their own input stream is authoritative to each player.
+
+- Represent input as a button bitmask per tick.
+- Begin with **two ticks of input delay**, negotiated before the match.
+- Predict missing remote input by repeating its last known buttons. Fire is a held action governed by the simulation cooldown.
+- Retain a snapshot before each tick and at least 120 ticks of input history.
+- On a differing late input, restore the snapshot preceding that tick and replay to the present.
+- Limit speculative execution to **12 ticks** beyond the mutually acknowledged input frontier. At the limit, pause with a connection indicator rather than predicting indefinitely.
+- Sample local inputs once per scheduled tick; render cadence cannot create extra commands. On focus loss, clear held inputs. A suspended tab follows the ordinary connection-stall policy.
+
+Distinguish locally simulated, input-complete, and mutually acknowledged ticks. Hash checks and durable replay checkpoints use agreed input-complete ticks, never speculative state.
+
+### DataChannels and failure handling
+
+Use two DataChannels:
+
+- **Gameplay:** unordered, `maxRetransmits: 0`; compact binary packets containing session epoch, sender, tick range, acknowledgement information, and the latest eight input frames.
+- **Control:** reliable and ordered; handshake, clock probes, missing-input repair, bounded snapshot transfer, and resume negotiation.
+
+These ordering and retransmission controls are part of the WebRTC API. Monitor `bufferedAmount` and discard obsolete gameplay sends rather than accumulating latency. [WebRTC specification](https://www.w3.org/TR/webrtc/)
+
+Send gameplay packets at 60 Hz. Repair older gaps over the reliable channel. Validate packet size, tick window and player ownership; duplicate inputs are harmless, but conflicting values for an already submitted tick are a protocol error.
+
+Before starting, both peers must agree on protocol/ABI versions and hashes of the WASM artifact, map and tuning configuration. Go supplies the match ID, player slots and seed. A ready exchange establishes tick zero; ping-based timing is used only for scheduling.
+
+- Compare state hashes every 60 agreed ticks.
+- On mismatch, freeze and save a diagnostic bundle containing versions, inputs, hashes and available snapshots.
+- Allow one casual recovery: designated player 0 supplies a bounded, validated snapshot at an agreed tick, then both peers replay confirmed inputs.
+- Treat this as recovery, not proof that player 0 was correct. A repeated mismatch aborts the match.
+- Attempt ICE recovery and resume for up to ten seconds; otherwise end as disconnected with no trusted competitive result.
+
+Deploy TURN for the first internet multiplayer milestone. Direct peer connectivity cannot be assumed; TURN relays the same DataChannel traffic. [WebRTC TURN guidance](https://webrtc.org/getting-started/turn-server)
+
+### Replays and presentation correction
+
+A replay contains format version, build/map/configuration hashes, seed, initial state, final paired inputs, and periodic checkpoints. Store confirmed inputs; overwrite predictions when actual inputs arrive. Seeking restores a checkpoint and runs the same WASM forward.
+
+Give events deterministic IDs derived from tick, entity and event index. Deduplicate audio and particles across rollback. Display speculative muzzle flashes immediately, but delay scoring and match-end UI until confirmed. Smooth small visual position corrections; never smooth authoritative collision state.
+
+### Go service
+
+Start with one Go process and in-memory rooms:
+
+- `POST /api/session`: issue an expiring guest cookie.
+- `GET /api/config`: protocol/build compatibility and ICE configuration.
+- `/ws`: authenticated lobby creation/joining, ready state, queue entry/cancellation, signaling and match lifecycle messages.
+- Match configuration fixes player slots, seed, content versions and designated recovery peer.
+
+Use origin checks, bounded messages, room-scoped signaling, idle cleanup and short-lived TURN credentials. Matchmaking pairs compatible builds within a selected region. Match results are labeled unverified.
+
+Record connection success, relay usage, RTT, stalls, rollback depth and desync counts. Deploy behind HTTPS/WSS.
+
+Later, run replay validation in Go using the identical WASM binary through wazero. This checks rule-consistent outcomes; it does not establish honest input timing or prevent collusion. Ranked play requires server-observed input deadlines or live authority. [wazero](https://wazero.io/)
+
+## Playable milestones and acceptance
+
+| Milestone | Deliverable | Acceptance gate |
+|---|---|---|
+| **1. Flight sandbox** | WASM gravity, thrust, inertia, fuel and rotation; minimal WebGPU ship and ship-following camera | Coasting and counter-steering feel controllable; recorded inputs reproduce identical hashes across render rates |
+| **2. Landing course** | Cave terrain, swept collision, one base, landing checks, refueling and instant practice restart | Skilled approaches succeed consistently; unsafe landings crash; maximum-speed flight cannot tunnel through terrain |
+| **3. Local combat** | Two ships, shared-keyboard split-screen, inherited-velocity projectiles, damage, respawns and scoring | Complete first-to-five matches; trades, crashes and spawn protection behave consistently |
+| **4. Rollback laboratory** | Two independent WASM instances behind simulated network conditions; snapshots, replay viewer and diagnostics | Delayed/reordered/duplicated/lost inputs converge to the reference result; prolonged outages stall cleanly |
+| **5. Internet invite match** | Go guest sessions, invite rooms, signaling, STUN/TURN and recovery | Complete matches over direct and forced-relay connections; mismatched builds are rejected; disconnects exit cleanly |
+| **6. Casual release** | Public queue, onboarding, configurable keys, connection UI and operational metrics | Two strangers can join, play, rematch and leave without manual intervention |
+| **7. Polish and validation** | Audio, particles, lighting, camera refinement, accessibility options and Go replay validation | Cosmetic load leaves simulation unchanged; stored replays validate with the same hashes in Go |
+
+Testing concentrates on meaningful invariants:
+
+- Fixed-point arithmetic, overflow bounds, angle wrapping and collision tie-breaking.
+- Landing thresholds immediately below, at and above each limit.
+- Fuel exhaustion, refueling, launch, cooldowns and projectile velocity inheritance.
+- Snapshot round trips and restoration before deaths, spawns and pool reuse.
+- Long deterministic replays across Chromium, Firefox, WebKit and eventually wazero, independent of WebGPU availability.
+- Network tests at 0–200 ms RTT, jitter, loss and burst outages; verify eventual state convergence and bounded prediction.
+- Forced desync, missing-input repair, malformed packets, TURN-only connections and tab suspension.
+- On a documented baseline laptop, target a normal simulation tick below 1 ms and a 12-tick rollback below 8 ms.
+
+Keep rendering simple until milestone 4 passes: flat terrain, readable ships, projectiles, fuel/hull HUD and a damped camera with velocity look-ahead. Later handle device loss by rebuilding GPU resources from CPU-side data; show a clear compatibility screen when WebGPU is unavailable. [WebGPU specification](https://www.w3.org/TR/webgpu/)
+
+The numerical budgets and initial weapon/respawn values are starting defaults. Flight tuning is deliberately resolved through playable testing before networking, then versioned so every peer and replay uses identical rules.

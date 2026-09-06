@@ -1,0 +1,8 @@
+node_modules/
+dist/
+public/simulation.wasm
+sim/assembled.wat
+
+artifacts/
+public/build.json
+tests/collision-test.wasm

@@ -1,0 +1,197 @@
+// Single reusable entry point: node tests/browser.mjs
+// Starts and closes its own local server and browser. Artifacts stay in artifacts/.
+import { chromium, firefox, webkit } from '@playwright/test';
+import { createServer } from 'vite';
+import { mkdir, readFile, writeFile, access, mkdtemp } from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {checkLobby} from './browser-lobby.mjs';
+import {checkPeer} from './browser-peer.mjs';
+import {startTurn} from './browser-turn.mjs';
+import {checkDeployment} from './browser-deployment.mjs';
+await mkdir('artifacts', {recursive:true});
+const server=await createServer({server:{host:'127.0.0.1',port:0}});
+await server.listen();
+const base=server.resolvedUrls.local[0];
+let browser;
+try {
+  browser=await chromium.launch({channel:'chrome',headless:true,args:['--enable-unsafe-webgpu']});
+  const page=await browser.newPage({viewport:{width:1440,height:1000}});
+  const errors=[];
+  page.on('pageerror', error=>errors.push(String(error)));
+  page.on('console', message=>{if(message.type()==='error')errors.push(message.text());});
+  await page.addInitScript(()=>{
+    window.testSounds=0;
+    const Audio=window.AudioContext;window.AudioContext=class extends Audio{createOscillator(){window.testSounds++;return super.createOscillator();}};
+    window.testGPUDevices=[];window.testGPUUnavailable=false;
+    const requestAdapter=navigator.gpu.requestAdapter.bind(navigator.gpu);
+    navigator.gpu.requestAdapter=async options=>{
+      if(window.testGPUUnavailable)return null;
+      const adapter=await requestAdapter(options);if(!adapter)return adapter;
+      const requestDevice=adapter.requestDevice.bind(adapter);
+      adapter.requestDevice=async options=>{const device=await requestDevice(options);window.testGPUDevices.push(device);return device;};
+      return adapter;
+    };
+  });
+  await page.goto(base);
+  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('TICK'));
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator('body').evaluate(e=>e.classList.contains('unavailable')),false);
+  await page.getByRole('button',{name:'Controls',exact:true}).click();
+  await page.getByRole('button',{name:'Player 1 Thrust',exact:true}).click();
+  await page.keyboard.press('a');
+  assert.match(await page.locator('#controls-panel output').textContent(),/already assigned/);
+  await page.keyboard.press('i');
+  assert.equal(await page.getByRole('button',{name:'Player 1 Thrust',exact:true}).textContent(),'I');
+  await page.getByRole('button',{name:'Done',exact:true}).click();
+  await page.reload();
+  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('ON PAD'));
+  await page.keyboard.down('w');await page.waitForTimeout(100);await page.keyboard.up('w');
+  assert.match(await page.locator('#status').textContent(),/ON PAD/);
+  await page.keyboard.down('i');await page.waitForTimeout(250);await page.keyboard.up('i');
+  assert.match(await page.locator('#status').textContent(),/IN FLIGHT/);
+  await page.getByRole('button',{name:'Controls',exact:true}).click();
+  await page.getByRole('button',{name:'Restore default controls',exact:true}).click();
+  await page.getByLabel('Sound effects',{exact:true}).check();
+  await page.getByRole('button',{name:'Done',exact:true}).click();
+  await page.getByRole('button',{name:'Flight lab',exact:true}).click();
+  await page.waitForTimeout(100);
+  await page.keyboard.down('w');
+  await page.keyboard.down('d');
+  await page.waitForTimeout(800);
+  await page.keyboard.up('d');
+  await page.keyboard.up('w');
+  const spin=await page.locator('#status strong').nth(2).textContent();
+  assert.ok(Number(spin)>0,'rotation produces angular momentum');
+  const fuel=await page.locator('#status strong').nth(0).textContent();
+  assert.ok(parseInt(fuel)<100,'thrust consumes fuel');
+  await page.screenshot({path:'artifacts/flight.png'});
+  await page.keyboard.press('r');
+  await page.waitForTimeout(100);
+  assert.equal(await page.locator('#status strong').nth(0).textContent(),'100%');
+  await page.getByRole('button',{name:'Landing course',exact:true}).click();
+  await page.waitForTimeout(150);
+  assert.match(await page.locator('#status').textContent(),/ON PAD/);
+  await page.keyboard.down('w');await page.waitForTimeout(400);await page.keyboard.up('w');
+  assert.match(await page.locator('#status').textContent(),/IN FLIGHT/);
+  await page.screenshot({path:'artifacts/landing.png'});
+  await page.getByRole('button',{name:'Local duel',exact:true}).click();
+  await page.waitForTimeout(100);
+  await page.keyboard.down('w');await page.keyboard.down('ArrowUp');
+  await page.keyboard.down('Space');await page.keyboard.down('Enter');
+  await page.waitForTimeout(500);
+  await page.keyboard.up('w');await page.keyboard.up('ArrowUp');await page.keyboard.up('Space');await page.keyboard.up('Enter');
+  assert.match(await page.locator('#status').textContent(),/IN FLIGHT/);
+  assert.match(await page.locator('#opponent').textContent(),/IN FLIGHT/);
+  assert.ok(await page.locator('#opponent').isVisible());
+  assert.ok(await page.evaluate(()=>window.testSounds)>0,'firing creates sound voices after enabling audio');
+  await page.screenshot({path:'artifacts/combat.png'});
+  await page.getByRole('button',{name:'Rollback lab',exact:true}).click();
+  await page.getByRole('button',{name:'Run 15-second scenario',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('#lab-status').textContent.includes('Converged'));
+  await page.locator('#replay-seek').fill('420');
+  await page.waitForFunction(()=>document.querySelector('#seek-tick').textContent==='420');
+  const downloadPromise=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Save replay',exact:true}).click();
+  const download=await downloadPromise;await download.saveAs('artifacts/browser-replay.json');
+  await page.locator('#replay-file').setInputFiles('artifacts/browser-replay.json');
+  await page.waitForFunction(()=>document.querySelector('#lab-status').textContent.includes('Replay validated'));
+  await page.screenshot({path:'artifacts/rollback.png'});
+  await page.getByRole('button',{name:'Close laboratory',exact:true}).click();
+  const tickBeforeLoss=await page.locator('#status small').textContent();
+  await page.evaluate(()=>window.testGPUDevices.at(-1).destroy());
+  await page.waitForFunction(()=>document.querySelector('canvas').dataset.graphicsGeneration==='2');
+  await page.waitForTimeout(100);
+  assert.notEqual(await page.locator('#status small').textContent(),tickBeforeLoss,'simulation continues during graphics recovery');
+  await page.evaluate(()=>{window.testGPUUnavailable=true;window.testGPUDevices.at(-1).destroy();});
+  await page.getByRole('button',{name:'Retry graphics',exact:true}).waitFor({state:'visible'});
+  const tickWhileUnavailable=await page.locator('#status small').textContent();
+  await page.waitForTimeout(100);
+  assert.notEqual(await page.locator('#status small').textContent(),tickWhileUnavailable);
+  await page.evaluate(()=>{window.testGPUUnavailable=false;});
+  await page.getByRole('button',{name:'Retry graphics',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('canvas').dataset.graphicsGeneration==='3');
+  await page.waitForTimeout(100);
+  assert.equal(await page.locator('#graphics-status').isVisible(),false);
+  await page.screenshot({path:'artifacts/graphics-recovered.png'});
+  assert.deepEqual(errors,[]);
+  console.log('Browser flight, WebGPU validation, keyboard input and reset passed. Screenshot: artifacts/flight.png');
+  if(process.argv.includes('--peer'))await checkPeer(browser,base);
+  if(process.argv.includes('--turn')){const turn=await startTurn();try{await checkLobby(browser,turn);await checkPeer(browser,base,turn);}finally{await turn.close();}}
+  else if(process.argv.includes('--lobby'))await checkLobby(browser);
+  if(process.argv.includes('--https'))await checkDeployment(browser);
+  await browser.close(); browser=undefined;
+  const wasm=await readFile('public/simulation.wasm');
+  const {instance}=await WebAssembly.instantiate(wasm);
+  const reference=instance.exports;
+  const expected={};
+  for(const map of [0,32768]) {
+    reference.init(1024,map,0);
+    for(let tick=0;tick<120000;tick++) {
+      new Uint8Array(reference.memory.buffer,2048,2).set([(tick*7+(tick>>5))&7,(tick*3+(tick>>7))&7]);
+      reference.step(2048,1);
+    }
+    expected[map]=reference.state_hash().toString();
+  }
+  const results=[];
+  const engines=process.argv.includes('--all-engines')?[['chromium',chromium],['firefox',firefox],['webkit',webkit]]:[['chromium',chromium]];
+  for(const [name,engine]of engines) {
+    if(name!=='chromium') {
+      console.log(`Checking pinned ${name} installation…`);
+      const exec=promisify(execFile);
+      if(process.platform==='darwin') {
+        // Playwright ZIP extraction stalled under both Node 22 and 26 here.
+        // Ask the pinned CLI for its official URLs; use native macOS extraction.
+        const {stdout}=await exec(process.execPath,['node_modules/playwright/cli.js','install','--dry-run',name]);
+        for(const block of stdout.split('\n\n')) {
+          const location=block.match(/Install location:\s+([^\n]+)/)?.[1];
+          const url=block.match(/Download url:\s+(https:\/\/[^\s]+)/)?.[1];
+          if(!location||!url)continue;
+          try{await access(join(location,'INSTALLATION_COMPLETE'));continue;}catch{}
+          console.log(`Provisioning ${block.split('\n')[0]} with native extraction…`);
+          const temporary=await mkdtemp(join(tmpdir(),'cavern-browser-'));
+          const zip=join(temporary,'browser.zip');
+          await exec('/usr/bin/curl',['--fail','--location','--retry','2','--max-time','180','--output',zip,url],{timeout:200000});
+          await mkdir(location,{recursive:true});
+          await exec('/usr/bin/ditto',['-x','-k',zip,location],{timeout:120000});
+          await writeFile(join(location,'INSTALLATION_COMPLETE'),'');
+        }
+      }else await exec(process.execPath,['node_modules/playwright/cli.js','install',name],{timeout:900000});
+    }
+    browser=await engine.launch(name==='chromium'?{channel:'chrome',headless:true}:{headless:true});
+    const replay=await browser.newPage();
+    // No renderer is started: determinism works independently of WebGPU support.
+    await replay.goto(new URL('build.json',base).href);
+    const measurements=await replay.evaluate(async bytes=>{
+      const {instance}=await WebAssembly.instantiate(new Uint8Array(bytes));
+      const s=instance.exports;
+      const result=[];
+      for(const map of [0,32768]) for(const cadence of [30,60,144]) {
+        s.init(1024,map,0);
+        const start=performance.now();
+        for(let tick=0;tick<120000;tick++) {
+          new Uint8Array(s.memory.buffer,2048,2).set([(tick*7+(tick>>5))&7,(tick*3+(tick>>7))&7]);
+          s.step(2048,1);
+          const reads=Math.floor((tick+1)*cadence/60)-Math.floor(tick*cadence/60);
+          for(let i=0;i<reads;i++)s.write_frame(81920);
+        }
+        result.push({map,cadence,hash:s.state_hash().toString(),averageTickMs:(performance.now()-start)/120000});
+      }
+      return result;
+    },[...wasm]);
+    for(const measurement of measurements)assert.equal(measurement.hash,expected[measurement.map],`${name} ${measurement.cadence} Hz`);
+    const evidence={engine:name,wasm:createHash('sha256').update(wasm).digest('hex'),date:new Date().toISOString(),ticks:120000,measurements};
+    results.push(evidence);
+    await writeFile(`artifacts/determinism-${name}.json`,JSON.stringify(evidence,null,2)+'\n');
+    await browser.close(); browser=undefined;
+  }
+  await writeFile('artifacts/determinism.json',JSON.stringify({ticks:120000,expected,results},null,2));
+  console.log(`120,000-tick replay matches Node at 30/60/144 presentation reads per simulated second in: ${results.map(r=>r.engine).join(', ')}`);
+} finally {
+  await browser?.close();
+  await server.close();
+}
