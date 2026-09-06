@@ -57,6 +57,7 @@ async function createRenderer(canvas:HTMLCanvasElement,effects:Effects,get:Frame
   const shipData=new Float32Array(16),bulletData=new Float32Array(3072);
   const corrections=[new PositionCorrection(),new PositionCorrection()];
   const flight=[new FlightInterpolation(),new FlightInterpolation()];
+  const thrustPower=[0,0];
   let previous=performance.now();
   if(lost)throw Error('Graphics device was lost during initialization');
   ready=true;
@@ -77,7 +78,10 @@ async function createRenderer(canvas:HTMLCanvasElement,effects:Effects,get:Frame
         camera[0]+=(x+(reducedMotion?0:Math.max(-160,Math.min(160,motion.vx*12)))-camera[0])*damp;
         camera[1]+=(y+(reducedMotion?0:Math.max(-160,Math.min(160,motion.vy*12)))-camera[1])*damp;
       }
-      shipData.set([x,y,motion.angle,state[o+7]>0?1:0,(buttons[p]&1)&&state[o+6]>0?1:0,state[o+12]>0?1:0,0,0],p*8);
+      const thrust=(buttons[p]&1)&&state[o+6]>0&&state[o+7]>0?1:0;
+      if(snap||reducedMotion||state[o+7]<=0)thrustPower[p]=thrust;
+      else thrustPower[p]+=(thrust-thrustPower[p])*(1-Math.exp(-dt*24));
+      shipData.set([x,y,motion.angle,state[o+7]>0?1:0,thrustPower[p],state[o+12]>0?1:0,0,0],p*8);
     }
     if(snap&&state[0]>0)didSnap();
     for(let i=0;i<256;i++){const o=48+i*8;bulletData.set([state[o]/65536,state[o+1]/65536,state[o+5],state[o+4]>0&&!state[o+7]?1:0],i*4);}
@@ -87,7 +91,7 @@ async function createRenderer(canvas:HTMLCanvasElement,effects:Effects,get:Frame
     device.queue.writeBuffer(ships,0,shipData);device.queue.writeBuffer(bullets,0,bulletData);
     const encoder=device.createCommandEncoder();
     const pass=encoder.beginRenderPass({colorAttachments:[{view:context.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
-    device.queue.writeBuffer(uniform,0,new Float32Array([canvas.width,canvas.height,...camera,state[2],0,0,0]));
+    device.queue.writeBuffer(uniform,0,new Float32Array([canvas.width,canvas.height,...camera,state[2],(now/1000)%3600,reducedMotion?0:1,0]));
     pass.setBindGroup(0,group);pass.setPipeline(scene);pass.draw(3);pass.setPipeline(projectiles);pass.draw(6,256+particleCount);pass.setPipeline(debris);pass.draw(6,fragmentCount);
     pass.end();device.queue.submit([encoder.finish()]);animation=requestAnimationFrame(draw);
     }catch{lost=true;onLost();}

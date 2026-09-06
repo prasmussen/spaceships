@@ -1,4 +1,4 @@
-struct View { size: vec2f, camera: vec2f, mode:f32, padding:f32 };
+struct View { size: vec2f, camera: vec2f, mode:f32, time:f32, motion:f32, padding:f32 };
 struct Ship { position:vec2f, angle:f32, alive:f32, thrust:f32, protection:f32, padding:vec2f };
 @group(0) @binding(0) var<uniform> view: View;
 @group(0) @binding(1) var<storage,read> terrain: array<vec4f>;
@@ -11,6 +11,25 @@ fn line(p:vec2f, a:vec2f, b:vec2f)->f32 {
   let ab=b-a; return length(p-a-ab*clamp(dot(p-a,ab)/dot(ab,ab),0.,1.));
 }
 fn tint(player:u32)->vec3f { return select(vec3f(.18,.85,.72),vec3f(1.,.48,.25),player==1u); }
+fn exhaust(p:vec2f,power:f32,player:u32)->vec3f {
+  if(power<.01 || p.y<10. || p.y>34. || abs(p.x)>9.){return vec3f(0.);}
+  let t=view.time+f32(player)*2.7;
+  let pulse=(sin(t*27.)*.55+sin(t*43.+1.3)*.3+sin(t*71.)*.15)*view.motion;
+  let length=12.+power*9.+pulse*.8;
+  let y=p.y-10.;let progress=clamp(y/length,0.,1.);
+  // Keep the original short triangular silhouette, with a gently moving edge.
+  let bend=(sin(y*.38-t*24.)+sin(y*.73-t*37.)*.4)*progress*.3*view.motion;
+  let x=abs(p.x-bend);
+  let width=4.6*(1.-progress)*(1.+sin(y*.7-t*31.)*.04*view.motion);
+  let tip=1.-smoothstep(length-2.,length,y);
+  let ignition=smoothstep(0.,.6,y)*power;
+  let plume=(1.-smoothstep(max(0.,width-.65),width+.35,x))*tip;
+  let core=exp(-pow(x/max(width*.45,.2),2.)*2.)*(1.-smoothstep(4.,length*.62,y));
+  let glow=exp(-x*x/20.)*exp(-y/10.)*.12;
+  let diamonds=.8+.2*pow(sin(y*.52-t*7.*view.motion),2.);
+  let flame=mix(vec3f(.25,.65,1.),vec3f(1.,.28,.035),smoothstep(.13,.72,progress));
+  return (flame*plume*diamonds+vec3f(.7,.9,1.)*core*1.7+vec3f(.18,.42,.8)*glow)*ignition;
+}
 @fragment fn fs(@builtin(position) pos:vec4f)->@location(0) vec4f {
   let world=pos.xy-view.size*.5+view.camera;
   let grid=abs(fract(world/100.+.5)-.5)*100.;
@@ -39,7 +58,7 @@ fn tint(player:u32)->vec3f { return select(vec3f(.18,.85,.72),vec3f(1.,.48,.25),
     let p=vec2f(c*local.x+s*local.y,-s*local.x+c*local.y);
     let edge=min(line(p,vec2f(0,-17),vec2f(-12,12)),min(line(p,vec2f(-12,12),vec2f(0,7)),min(line(p,vec2f(0,7),vec2f(12,12)),line(p,vec2f(12,12),vec2f(0,-17)))));
     color+=tint(player)*exp(-edge*.8);
-    if(ship.thrust>.5 && p.y>10. && p.y<31. && abs(p.x)<(31.-p.y)*.21){color=vec3f(1.,.55,.2);}
+    color+=exhaust(p,ship.thrust,player);
     if(ship.protection>.5){color+=tint(player)*.45*exp(-abs(length(local)-24.));}
   }
   return vec4f(color,1.);
