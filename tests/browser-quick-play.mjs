@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {writeFile} from 'node:fs/promises';
 export async function checkQuickPlay(browser,base,forceRelay=false){
 const pages=[],errors=[];
 try{
@@ -7,14 +8,14 @@ try{
     page.on('pageerror',error=>errors.push(String(error)));
     await page.addInitScript(forceRelay=>{
       if(forceRelay){const PC=window.RTCPeerConnection;window.RTCPeerConnection=class extends PC{constructor(config){super({...config,iceTransportPolicy:'relay'});}};}
-      window.testFrames=[];window.testMatches=[];window.testSockets=[];
+      window.testFrames=[];window.testMatches=[];window.testSockets=[];window.testLobbyMessages=[];
       const OriginalWorker=window.Worker;
       window.Worker=class extends OriginalWorker{
         constructor(...args){super(...args);this.addEventListener('message',({data})=>{if(data.type==='frame'&&data.complete!==undefined){const state=new Int32Array(data.buffer);window.testFrames.push({tick:data.tick,players:state[5],scores:Array.from({length:state[5]},(_,i)=>state[27+i*16]),x:state[16],y:state[17],stalled:data.stalled});if(window.testFrames.length>100)window.testFrames.shift();}});}
       };
       const OriginalWebSocket=window.WebSocket;
       window.WebSocket=class extends OriginalWebSocket{
-        constructor(...args){super(...args);window.testSockets.push(this);this.addEventListener('message',({data})=>{const m=JSON.parse(data);if(m.type==='match')window.testMatches.push(m);});}
+        constructor(...args){super(...args);window.testSockets.push(this);this.addEventListener('message',({data})=>{const m=JSON.parse(data);window.testLobbyMessages.push(m);if(window.testLobbyMessages.length>30)window.testLobbyMessages.shift();if(m.type==='match')window.testMatches.push(m);});}
       };
     },forceRelay);
     await page.goto(base);
@@ -46,11 +47,13 @@ try{
   await pages[0].waitForFunction(()=>!window.testFrames.at(-1).stalled);
   console.log('Lobby reconnect: HTTP retry preserves the room');
   // Explicit departure of the mesh coordinator must preserve the other players.
-  await pages[0].evaluate(()=>document.querySelector('#online-leave').click());
+  await pages[0].getByRole('button',{name:'Open game menu'}).click();
+  await pages[0].getByRole('button',{name:'Exit to lobby',exact:true}).click();
   for(const page of pages.slice(1,4))await page.waitForFunction(()=>window.testFrames.at(-1)?.players===3&&window.testFrames.at(-1).tick>15&&!window.testFrames.at(-1).stalled,null,{timeout:25000});
   console.log('Host left: three pilots continue');
-  await pages[0].evaluate(()=>document.querySelector('#queue-join').click());
+  await pages[0].evaluate(()=>{window.testFrames=[];document.querySelector('#queue-join').click();});
   for(const page of pages.slice(0,4))await page.waitForFunction(()=>window.testFrames.at(-1)?.players>=2&&window.testFrames.at(-1).tick>15&&!window.testFrames.at(-1).stalled,null,{timeout:25000});
+  console.log('Rejoin cooldown: requested match resumes automatically');
   // Abrupt tab closure exercises the reconnect grace period and coordinator promotion.
   const roster=await pages[1].evaluate(()=>window.testMatches.at(-1));
   const group=[];
@@ -60,5 +63,5 @@ try{
   for(const page of survivors)await page.waitForFunction(players=>window.testFrames.at(-1)?.players===players&&window.testFrames.at(-1).tick>15&&!window.testFrames.at(-1).stalled,group.length-1,{timeout:30000});
   console.log('Closed host tab: surviving pilots continue after reconnect grace period');
   assert.deepEqual(errors,[]);
-}finally{await Promise.all(pages.map(page=>page.close()));}
+}catch(error){await writeFile('artifacts/quick-play-failure.json',JSON.stringify(await Promise.all(pages.filter(page=>!page.isClosed()).map(page=>page.evaluate(()=>({status:document.querySelector('#online-status')?.textContent,connection:document.querySelector('#connection-status')?.textContent,frame:window.testFrames?.at(-1),messages:window.testLobbyMessages})))),null,2));throw error;}finally{await Promise.all(pages.map(page=>page.close()));}
 }

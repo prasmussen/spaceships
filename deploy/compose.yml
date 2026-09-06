@@ -3,6 +3,9 @@ services:
     build:
       context: ..
     restart: unless-stopped
+    mem_limit: ${APP_MEMORY_LIMIT:-512m}
+    cpus: ${APP_CPUS:-2.0}
+    pids_limit: 128
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
@@ -12,6 +15,7 @@ services:
       TURN_URLS: ${TURN_URLS:-}
       TURN_SECRET: ${TURN_SECRET:-}
       METRICS_TOKEN: ${METRICS_TOKEN:?Set METRICS_TOKEN}
+      GOMEMLIMIT: ${APP_GO_MEMORY_LIMIT:-384MiB}
       TRUSTED_PROXY_CIDRS: 172.30.90.2/32
     networks:
       game:

@@ -4,8 +4,6 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha1"
-	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -13,7 +11,6 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -53,12 +50,28 @@ type Match struct {
 	RecoveryPeer int      `json:"recoveryPeer"`
 	Region       string   `json:"region"`
 }
-type session struct{ expires time.Time }
+type session struct {
+	expires    time.Time
+	idleUntil  time.Time
+	source     string
+	joins      rate
+	ice        rate
+	messages   rate
+	iceExpires int64
+	nextJoin   time.Time
+}
+type sourceBudget struct {
+	last                                  time.Time
+	sessions                              int
+	issue, upgrades, joins, ice, messages rate
+}
 type rate struct {
 	since time.Time
 	count int
 }
 type client struct {
+	source    string
+	opened    time.Time
 	players   int
 	token     string
 	conn      *websocket.Conn
@@ -73,6 +86,7 @@ type client struct {
 	messages  int
 }
 type room struct {
+	admissions   rate
 	quick        bool
 	previous     []*client
 	transition   string
@@ -102,24 +116,28 @@ type message struct {
 	Metrics    *Metrics        `json:"metrics"`
 }
 type Metrics struct {
-	Connections uint64 `json:"connections"`
-	Relayed     uint64 `json:"relayed"`
-	RTT         uint64 `json:"rttMs"`
-	Stalls      uint64 `json:"stalls"`
-	Rollbacks   uint64 `json:"rollbacks"`
-	MaxDepth    uint64 `json:"maxDepth"`
-	Desyncs     uint64 `json:"desyncs"`
-	Reports     uint64 `json:"reports"`
+	Server      *AdmissionMetrics `json:"server,omitempty"`
+	Connections uint64            `json:"connections"`
+	Relayed     uint64            `json:"relayed"`
+	RTT         uint64            `json:"rttMs"`
+	Stalls      uint64            `json:"stalls"`
+	Rollbacks   uint64            `json:"rollbacks"`
+	MaxDepth    uint64            `json:"maxDepth"`
+	Desyncs     uint64            `json:"desyncs"`
+	Reports     uint64            `json:"reports"`
 }
 type Server struct {
-	mu       sync.Mutex
-	cfg      Config
-	sessions map[string]session
-	clients  map[string]*client
-	rooms    map[string]*room
-	queue    []*client
-	rates    map[string]rate
-	metrics  Metrics
+	mu        sync.Mutex
+	cfg       Config
+	sessions  map[string]*session
+	clients   map[string]*client
+	rooms     map[string]*room
+	queue     []*client
+	sources   map[string]*sourceBudget
+	pending   map[string]*client
+	live      map[*client]bool
+	metrics   Metrics
+	admission AdmissionMetrics
 }
 
 func New(cfg Config) (*Server, error) {
@@ -142,7 +160,7 @@ func New(cfg Config) (*Server, error) {
 	if len(cfg.TURNURLs) > 0 && len(cfg.TURNSecret) < 24 {
 		return nil, errors.New("TURN requires a shared secret of at least 24 characters")
 	}
-	return &Server{cfg: cfg, sessions: map[string]session{}, clients: map[string]*client{}, rooms: map[string]*room{}, rates: map[string]rate{}}, nil
+	return &Server{cfg: cfg, sessions: map[string]*session{}, clients: map[string]*client{}, rooms: map[string]*room{}, sources: map[string]*sourceBudget{}, pending: map[string]*client{}, live: map[*client]bool{}}, nil
 }
 func randomID(bytes int) string {
 	b := make([]byte, bytes)
@@ -176,6 +194,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/session", s.issueSession)
 	mux.HandleFunc("GET /api/config", s.configuration)
+	mux.HandleFunc("POST /api/ice", s.credentials)
 	mux.HandleFunc("GET /ws", s.websocket)
 	mux.HandleFunc("GET /api/metrics", func(w http.ResponseWriter, r *http.Request) {
 		if s.cfg.MetricsToken == "" || !hmac.Equal([]byte(r.Header.Get("Authorization")), []byte("Bearer "+s.cfg.MetricsToken)) {
@@ -191,6 +210,13 @@ func (s *Server) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "same-origin")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+		if r.ContentLength != 0 || len(r.TransferEncoding) != 0 {
+			w.Header().Set("Connection", "close")
+			http.Error(w, "request body not allowed", http.StatusRequestEntityTooLarge)
+			return
+		}
 		mux.ServeHTTP(w, r)
 	})
 }
@@ -200,7 +226,7 @@ func (s *Server) token(r *http.Request) string {
 		return ""
 	}
 	v, ok := s.sessions[c.Value]
-	if !ok || !v.expires.After(s.cfg.Now()) {
+	if !ok || !v.expires.After(s.cfg.Now()) || (!v.idleUntil.After(s.cfg.Now()) && !s.sessionActive(c.Value)) {
 		return ""
 	}
 	return c.Value
@@ -233,32 +259,30 @@ func (s *Server) issueSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	token := s.token(r)
+	now := s.cfg.Now()
 	if token == "" {
-		host := s.clientAddress(r)
-		now := s.cfg.Now()
-		entry := s.rates[host]
-		if now.Sub(entry.since) > time.Minute {
-			entry = rate{since: now}
-		}
-		if entry.count >= 20 || len(s.sessions) >= 10000 || len(s.rates) >= 10000 {
-			http.Error(w, "session capacity reached", http.StatusTooManyRequests)
+		source := s.sourceAddress(r)
+		budget := s.source(source)
+		if budget == nil || budget.sessions >= 32 || len(s.sessions) >= 10000 || !allow(&budget.issue, now, time.Minute, 20) {
+			s.admission.RejectedSessions++
+			s.mu.Unlock()
+			limited(w)
 			return
 		}
-		entry.count++
-		s.rates[host] = entry
 		token = randomID(32)
-		s.sessions[token] = session{expires: now.Add(6 * time.Hour)}
+		s.sessions[token] = &session{expires: now.Add(6 * time.Hour), idleUntil: now.Add(2 * time.Minute), source: source}
+		budget.sessions++
 	}
 	expires := s.sessions[token].expires
-	http.SetCookie(w, &http.Cookie{Name: "spaceships_guest", Value: token, Path: "/", HttpOnly: true, Secure: strings.HasPrefix(r.Header.Get("Origin"), "https://"), SameSite: http.SameSiteStrictMode, Expires: expires, MaxAge: int(expires.Sub(s.cfg.Now()).Seconds())})
+	s.mu.Unlock()
+	http.SetCookie(w, &http.Cookie{Name: "spaceships_guest", Value: token, Path: "/", HttpOnly: true, Secure: strings.HasPrefix(r.Header.Get("Origin"), "https://"), SameSite: http.SameSiteStrictMode, Expires: expires, MaxAge: int(expires.Sub(now).Seconds())})
 	jsonResponse(w, map[string]any{"guest": true, "expires": expires})
 }
 func (s *Server) configuration(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	token := s.token(r)
+	s.mu.Unlock()
 	if token == "" {
 		http.Error(w, "guest session required", http.StatusUnauthorized)
 		return
@@ -267,41 +291,61 @@ func (s *Server) configuration(w http.ResponseWriter, r *http.Request) {
 	if len(s.cfg.STUNURLs) > 0 {
 		ice = append(ice, map[string]any{"urls": s.cfg.STUNURLs})
 	}
-	expires := s.cfg.Now().Add(10 * time.Minute).Unix()
-	if len(s.cfg.TURNURLs) > 0 {
-		// coturn TURN REST credentials: expiry:guest, base64(HMAC-SHA1(secret, username)).
-		username := strconv.FormatInt(expires, 10) + ":" + token[:16]
-		mac := hmac.New(sha1.New, []byte(s.cfg.TURNSecret))
-		_, _ = mac.Write([]byte(username))
-		ice = append(ice, map[string]any{"urls": s.cfg.TURNURLs, "username": username, "credential": base64.StdEncoding.EncodeToString(mac.Sum(nil))})
-	}
-	jsonResponse(w, map[string]any{"identity": s.cfg.Identity, "regions": s.cfg.Regions, "iceServers": ice, "iceExpires": expires, "inputDelay": 2, "resultTrust": "unverified"})
+	jsonResponse(w, map[string]any{"identity": s.cfg.Identity, "regions": s.cfg.Regions, "iceServers": ice, "inputDelay": 2, "resultTrust": "unverified"})
 }
 func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
+	if !s.origin(r) {
+		http.Error(w, "origin rejected", http.StatusForbidden)
+		return
+	}
 	s.mu.Lock()
 	token := s.token(r)
-	s.mu.Unlock()
 	if token == "" {
+		s.mu.Unlock()
 		http.Error(w, "guest session required", http.StatusUnauthorized)
 		return
 	}
-	// A guest cookie is shared by windows; only reconnect the same page instance.
-	key := token
-	if instance := r.URL.Query().Get("instance"); instance != "" {
-		if decoded, err := hex.DecodeString(instance); err != nil || len(decoded) != 16 {
-			http.Error(w, "invalid page instance", http.StatusBadRequest)
-			return
-		}
-		key += ":" + strings.ToLower(instance)
+	key, valid := instanceKey(token, r.URL.Query().Get("instance"))
+	if !valid {
+		s.mu.Unlock()
+		http.Error(w, "invalid page instance", http.StatusBadRequest)
+		return
 	}
+	c := &client{token: token, source: s.sourceAddress(r), opened: s.cfg.Now()}
+	if !s.reserve(key, c) {
+		s.mu.Unlock()
+		limited(w)
+		return
+	}
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		delete(s.live, c)
+		if s.pending[key] == c {
+			delete(s.pending, key)
+		}
+		s.mu.Unlock()
+	}()
 	upgrader := websocket.Upgrader{CheckOrigin: s.origin, HandshakeTimeout: 5 * time.Second, ReadBufferSize: 4096, WriteBufferSize: 4096}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
 	now := s.cfg.Now()
-	c := &client{token: token, conn: conn, send: make(chan any, 64), done: make(chan struct{}), connected: true, last: now, window: now}
+	c.conn = conn
+	c.send = make(chan any, 64)
+	c.done = make(chan struct{})
+	c.connected = true
+	c.last = now
+	c.window = now
 	s.mu.Lock()
+	delete(s.pending, key)
+	if s.token(r) == "" {
+		s.mu.Unlock()
+		_ = conn.Close()
+		return
+	}
+	s.sessions[token].idleUntil = now.Add(2 * time.Minute)
 	if old := s.clients[key]; old != nil {
 		c.room = old.room
 		c.region = old.region
@@ -354,6 +398,9 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 		if s.clients[key] == c {
 			c.connected = false
 			c.last = s.cfg.Now()
+			if guest := s.sessions[c.token]; guest != nil {
+				guest.idleUntil = c.last.Add(2 * time.Minute)
+			}
 			if room := s.rooms[c.room]; room != nil {
 				s.broadcast(room, map[string]any{"type": "peerDisconnected", "resumeSeconds": 10})
 			}
@@ -478,6 +525,11 @@ func (s *Server) leave(c *client) {
 	s.unqueue(c)
 	r := s.rooms[c.room]
 	c.room = ""
+	if r != nil {
+		if guest := s.sessions[c.token]; guest != nil {
+			guest.nextJoin = s.cfg.Now().Add(3 * time.Second)
+		}
+	}
 	if r == nil {
 		return
 	}
@@ -528,7 +580,9 @@ func (s *Server) handle(c *client, m message) {
 		c.messages = 0
 	}
 	c.messages++
-	if c.messages > 100 {
+	guest := s.sessions[c.token]
+	source := s.source(c.source)
+	if guest == nil || source == nil || c.messages > 100 || !allow(&guest.messages, now, time.Second, 200) || !allow(&source.messages, now, time.Second, 1000) {
 		_ = c.conn.Close()
 		return
 	}
@@ -562,6 +616,21 @@ func (s *Server) handle(c *client, m message) {
 		s.fail(c, "compatible hello required")
 		return
 	}
+	if m.Type == "quickPlay" || m.Type == "create" || m.Type == "join" || m.Type == "queue" {
+		if now.Before(guest.nextJoin) {
+			s.admission.RejectedJoins++
+			s.send(c, map[string]any{"type": "error", "message": "Please wait a few seconds before joining again.", "retryAfterMs": (guest.nextJoin.Sub(now) + time.Millisecond - 1).Milliseconds()})
+			return
+		}
+		if !allow(&guest.joins, now, time.Minute, 12) || !allow(&source.joins, now, time.Minute, 60) {
+			s.admission.RejectedJoins++
+			s.fail(c, "Please wait a few seconds before joining again.")
+			return
+		}
+	}
+	s.switchMessage(c, m)
+}
+func (s *Server) switchMessage(c *client, m message) {
 	switch m.Type {
 	case "quickPlay":
 		if c.room != "" {
@@ -570,7 +639,7 @@ func (s *Server) handle(c *client, m message) {
 		}
 		s.unqueue(c)
 		for _, r := range s.rooms {
-			if r.quick && r.region == c.region && len(r.members) < 4 {
+			if r.quick && r.transition == "" && r.region == c.region && len(r.members) < 4 && allow(&r.admissions, s.cfg.Now(), time.Minute, 4) {
 				if r.previous == nil {
 					r.previous = append([]*client(nil), r.members...)
 				}
@@ -795,7 +864,8 @@ func (s *Server) Cleanup() {
 	defer s.mu.Unlock()
 	now := s.cfg.Now()
 	for token, c := range s.clients {
-		expired := !s.sessions[c.token].expires.After(now)
+		guest := s.sessions[c.token]
+		expired := guest == nil || !guest.expires.After(now) || !c.hello && now.Sub(c.opened) > 10*time.Second
 		if expired || !c.connected && now.Sub(c.last) > 10*time.Second || c.connected && now.Sub(c.last) > 30*time.Minute {
 			s.leave(c)
 			delete(s.clients, token)
@@ -808,13 +878,16 @@ func (s *Server) Cleanup() {
 		}
 	}
 	for token, v := range s.sessions {
-		if !v.expires.After(now) {
+		if !v.expires.After(now) || !v.idleUntil.After(now) && !s.sessionActive(token) {
+			if source := s.sources[v.source]; source != nil {
+				source.sessions--
+			}
 			delete(s.sessions, token)
 		}
 	}
-	for ip, v := range s.rates {
-		if now.Sub(v.since) > 2*time.Minute {
-			delete(s.rates, ip)
+	for ip, v := range s.sources {
+		if v.sessions == 0 && now.Sub(v.last) > 2*time.Minute {
+			delete(s.sources, ip)
 		}
 	}
 }
@@ -835,4 +908,18 @@ func (s *Server) Run(ctx context.Context) {
 		}
 	}
 }
-func (s *Server) Metrics() Metrics { s.mu.Lock(); defer s.mu.Unlock(); return s.metrics }
+func (s *Server) Metrics() Metrics {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	result := s.metrics
+	state := s.admission
+	state.Sessions = len(s.sessions)
+	state.Clients = len(s.clients)
+	state.Sockets = len(s.live)
+	state.Pending = len(s.pending)
+	state.Rooms = len(s.rooms)
+	state.Queued = len(s.queue)
+	state.Sources = len(s.sources)
+	result.Server = &state
+	return result
+}

@@ -6,6 +6,7 @@
 	header X-Content-Type-Options nosniff
 	header Referrer-Policy same-origin
 	header X-Frame-Options DENY
+    header Strict-Transport-Security "max-age=31536000"
 	reverse_proxy app:8080 {
 		header_up X-Real-IP {remote_host}
 	}

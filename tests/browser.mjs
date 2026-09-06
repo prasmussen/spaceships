@@ -18,6 +18,14 @@ const server=await createServer({server:{host:'127.0.0.1',port:0}});
 await server.listen();
 const base=server.resolvedUrls.local[0];
 let browser;
+if(process.argv.includes('--server-only')){
+  try{
+    browser=await chromium.launch({channel:'chrome',headless:true,args:['--enable-unsafe-webgpu']});
+    if(process.argv.includes('--turn')){const turn=await startTurn();try{await checkLobby(browser,turn);await checkPeer(browser,base,turn);}finally{await turn.close();}}
+    else await checkLobby(browser);
+    if(process.argv.includes('--https'))await checkDeployment(browser);
+  }finally{await browser?.close();await server.close();}
+}else{
 try {
   browser=await chromium.launch({channel:'chrome',headless:true,args:['--enable-unsafe-webgpu']});
   const page=await browser.newPage({viewport:{width:1440,height:1000}});
@@ -231,4 +239,6 @@ try {
 } finally {
   await browser?.close();
   await server.close();
+}
+
 }

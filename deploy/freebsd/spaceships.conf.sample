@@ -11,3 +11,6 @@ STUN_URLS=''
 TURN_URLS=''
 TURN_SECRET=''
 METRICS_TOKEN=''
+
+# Soft Go heap budget; set jail/rctl limits separately for a hard memory cap.
+GOMEMLIMIT='384MiB'

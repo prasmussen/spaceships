@@ -106,7 +106,7 @@ service spaceships stop
 
 `status` reports the supervisor. A bad origin, missing assets or an unavailable listen address may cause repeated startup failures while the supervisor remains running: inspect the log and `/healthz`. The health endpoint checks the server only; also open the public HTTPS URL and try Quick play from two browsers on separate networks. Confirm direct/relay connectivity, shield controls, rematch and reconnect.
 
-Optional `/etc/rc.conf` overrides are `spaceships_config`, `spaceships_program` and `spaceships_run_user`. These default to the installed paths and account. Use paths without spaces for rc command arguments. The application has no persistent database or writable application data directory; sessions and rooms live in memory.
+Optional `/etc/rc.conf` overrides are `spaceships_config`, `spaceships_program` and `spaceships_run_user`. These default to the installed paths and account. Use paths without spaces for rc command arguments. The sample sets `GOMEMLIMIT=384MiB`, a soft Go memory target. Apply host/jail `rctl` resource limits and proxy connection limits appropriate to the jail; a Go soft target is not a hard jail limit. The application has no persistent database or writable application data directory; sessions and rooms live in memory.
 
 ## Upgrade or roll back
 

@@ -139,6 +139,30 @@ func TestSessionOriginExpiryAndTURN(t *testing.T) {
 		t.Fatal(err)
 	}
 	res.Body.Close()
+	if len(config.ICEServers) != 0 {
+		t.Fatal("public configuration exposed TURN credentials")
+	}
+	a := f.connect(t, cookie, "eu")
+	b := f.connect(t, f.guest(t), "eu")
+	send(t, a, map[string]any{"type": "queue", "players": 2})
+	next(t, a, "queued")
+	send(t, b, map[string]any{"type": "queue", "players": 2})
+	match := next(t, a, "match")["match"].(map[string]any)
+	next(t, b, "match")
+	req, _ = http.NewRequest("POST", f.server.URL+"/api/ice?matchId="+match["id"].(string), nil)
+	req.Header.Set("Origin", f.server.URL)
+	req.AddCookie(cookie)
+	res, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = json.NewDecoder(res.Body).Decode(&config); err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if len(config.ICEServers) != 1 {
+		t.Fatal("missing admitted relay credentials", res.StatusCode)
+	}
 	ice := config.ICEServers[0]
 	mac := hmac.New(sha1.New, []byte(f.hub.cfg.TURNSecret))
 	mac.Write([]byte(ice.Username))

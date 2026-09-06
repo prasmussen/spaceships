@@ -21,8 +21,10 @@ func (s *Server) startQuick(r *room, snapshot []byte, slots []int) {
 }
 
 func (s *Server) transitionRoom(r *room) {
+	if r.transition == "" {
+		r.transitionAt = s.cfg.Now()
+	}
 	r.transition = randomID(8)
-	r.transitionAt = s.cfg.Now()
 	r.authority = nil
 	for _, previous := range r.previous {
 		for _, member := range r.members {

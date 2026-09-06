@@ -2,9 +2,9 @@
 
 For a native FreeBSD jail without Docker, use [the FreeBSD deployment guide](freebsd.md).
 
-`Dockerfile` builds the handwritten WASM and frontend with pinned Node, then compiles the Go service with pinned Go. Image digests fix both build environments. The final image contains the static site and a Go binary, runs as a non-root user, and needs no writable filesystem. Startup verifies the served WASM digest.
+`Dockerfile` builds the handwritten WASM and frontend with pinned Node, then compiles the Go service with pinned Go. Image digests fix both build environments. The app container defaults to a 512 MiB hard memory limit, two CPUs, 128 PIDs and a 384 MiB Go soft memory budget. Override `APP_MEMORY_LIMIT`, `APP_CPUS` and `APP_GO_MEMORY_LIMIT` together based on measured concurrency; the Go budget must leave headroom below the container limit. These budgets contain process resource use, while server admission limits reject excess clients. The final image contains the static site and a Go binary, runs as a non-root user, and needs no writable filesystem. Startup verifies the served WASM digest.
 
-`deploy/compose.yml` places Caddy in front of the app. Only Caddy publishes ports. Caddy manages public certificates and proxies WebSocket upgrades; see its [automatic HTTPS](https://caddyserver.com/docs/automatic-https) and [reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy) documentation.
+`deploy/compose.yml` places Caddy in front of the app. Only Caddy publishes ports. Caddy sends one-year HSTS without including subdomains and manages public certificates and proxies WebSocket upgrades; see its [automatic HTTPS](https://caddyserver.com/docs/automatic-https) and [reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy) documentation.
 
 ## Prepare a host
 
@@ -23,12 +23,14 @@ The Go service accepts `X-Real-IP` only from the configured Caddy address, `172.
 ## Local deployment verification
 
 ```sh
-node tests/browser.mjs --https
+node tests/browser.mjs --server-only --https
 ```
 
 The existing browser entry point builds the complete image, starts an isolated Compose project on loopback ports 18080/18443, and uses Caddy's internal CA. Only these test browser contexts ignore certificate trust errors; no CA is installed on the host. It verifies a secure context, Secure/HttpOnly guest cookies, WSS queue matching, WebRTC controls, wrong-origin rejection and leave. It compares the container's WASM identity with the workspace build. Finally it stops the project and deletes only its own test volumes. Evidence is written to `artifacts/https-browser.json` and `artifacts/https-server.log`.
 
 ## Operations and acceptance
+
+Deploy the updated frontend and server together: relay credentials now come from match-scoped `POST /api/ice`, and `/api/config` no longer grants relay access. Existing tabs should reload after this upgrade.
 
 Rooms, sessions, queue entries and metrics are in memory. Restarting the Go process interrupts active matches; schedule updates between play sessions. This is a single-instance deployment: do not place independently stateful app replicas behind a load balancer. Preserve each released build manifest and WASM alongside its replays for later validation.
 
