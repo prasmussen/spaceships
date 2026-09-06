@@ -1,4 +1,4 @@
-const defaults=['KeyW','KeyA','KeyD','Space','KeyR'];
+const defaults=['KeyW','KeyA','KeyD','Space'];
 const arrows=['ArrowUp','ArrowLeft','ArrowRight'];
 const actions=['Thrust','Rotate left','Rotate right','Fire'];
 const supported=/^(Key[A-Z]|Digit[0-9]|Arrow(Up|Down|Left|Right)|Space|Enter|ShiftLeft|ShiftRight)$/;
@@ -6,22 +6,22 @@ function label(code:string){return code.replace(/^Key|^Digit/,'').replace('Arrow
 export class Controls {
   private codes=[...defaults];
   reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  sound=false;
+  sound=true;
   private pending=-1;
   private dialog=document.createElement('dialog');
   private output=document.createElement('output');
   private buttons:HTMLButtonElement[]=[];
   constructor(clear:()=>void){
-    try{let saved=JSON.parse(localStorage.getItem('cavern-controls')??'null');if(Array.isArray(saved)&&saved.length===9)saved=[...saved.slice(0,4),saved[8]];if(Array.isArray(saved)&&saved.length===5&&saved.every(c=>typeof c==='string'&&supported.test(c))&&new Set(saved).size===5){this.codes=saved;localStorage.setItem('cavern-controls',JSON.stringify(saved));}}catch{}
+    try{let saved=JSON.parse(localStorage.getItem('cavern-controls')??'null');if(Array.isArray(saved)&&(saved.length===9||saved.length===5))saved=saved.slice(0,4);if(Array.isArray(saved)&&saved.length===4&&saved.every(c=>typeof c==='string'&&supported.test(c))&&new Set(saved).size===4){this.codes=saved;localStorage.setItem('cavern-controls',JSON.stringify(saved));}}catch{}
     try{const value=localStorage.getItem('cavern-reduced-motion');if(value==='true'||value==='false')this.reducedMotion=value==='true';}catch{}
-    try{this.sound=localStorage.getItem('cavern-sound')==='true';}catch{}
+    try{this.sound=localStorage.getItem('cavern-sound')!=='false';}catch{}
     this.dialog.id='controls-panel';this.dialog.setAttribute('aria-labelledby','controls-title');
     const title=document.createElement('h2');title.id='controls-title';title.textContent='Controls';
     const intro=document.createElement('p');intro.textContent='Select an action, then press a key. Escape cancels. Each action needs a different key. Up also thrusts; Left and Right also rotate, unless assigned to another action. These controls apply to your ship in practice and online matches.';
     this.dialog.append(title,intro);
     const group=document.createElement('fieldset'),legend=document.createElement('legend');legend.textContent='Your ship';group.append(legend);
     for(let a=0;a<4;a++)group.append(this.binding(a,actions[a],actions[a]));
-    this.dialog.append(group,this.binding(4,'Restart or rematch','Restart / rematch'));
+    this.dialog.append(group);
     const motionLabel=document.createElement('label'),motion=document.createElement('input');motion.type='checkbox';motion.checked=this.reducedMotion;motionLabel.append(motion,' Reduce camera motion');this.dialog.append(motionLabel);
     motion.onchange=()=>{this.reducedMotion=motion.checked;try{localStorage.setItem('cavern-reduced-motion',String(motion.checked));}catch{}clear();};
     const soundLabel=document.createElement('label'),sound=document.createElement('input');sound.type='checkbox';sound.checked=this.sound;soundLabel.append(sound,' Sound effects');this.dialog.append(soundLabel);
@@ -51,7 +51,6 @@ export class Controls {
     if(i>=0)return i<4?1<<i:0;
     const arrow=arrows.indexOf(code);return arrow>=0?1<<arrow:0;
   }
-  restart(code:string){return code===this.codes[4];}
   private binding(index:number,name:string,text:string){
     const row=document.createElement('div'),caption=document.createElement('span'),button=document.createElement('button');caption.textContent=text;
     button.setAttribute('aria-label',name);button.onclick=()=>{this.pending=index;this.output.textContent=`Press a key for ${name}.`;this.refresh();};
@@ -66,6 +65,6 @@ export class Controls {
       const alias=arrows[i],keys=alias&&!this.codes.includes(alias)?`${label(this.codes[i])} / ${label(alias)}`:label(this.codes[i]);
       return `${keys} ${action.toLowerCase()}`;
     }).join(' · ');footer.append(line);
-    const restart=document.createElement('p');restart.textContent=`${label(this.codes[4])} restart / rematch · Land upright and slowly on your illuminated pad to refuel.`;footer.append(restart);
+    const hint=document.createElement('p');hint.textContent='Land upright and slowly on your illuminated pad to refuel.';footer.append(hint);
   }
 }

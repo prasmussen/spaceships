@@ -1,7 +1,5 @@
 import assert from 'node:assert/strict';
 import {writeFile} from 'node:fs/promises';
-import {execFile} from 'node:child_process';
-import {promisify} from 'node:util';
 import {matchInputs} from './match-inputs.mjs';
 export async function checkFullMatch(browser,base,relay){
   const inputs=await matchInputs(),contexts=[],pages=[];
@@ -19,28 +17,32 @@ export async function checkFullMatch(browser,base,relay){
           }
         };
       },inputs);
+      if(relay)await context.addInitScript(()=>{
+        const PC=window.RTCPeerConnection;
+        window.RTCPeerConnection=class extends PC{constructor(config){super({...config,iceTransportPolicy:'relay'});}};
+      });
       const page=await context.newPage();pages.push(page);await page.goto(base);await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('FUEL'));
-      await page.getByRole('button',{name:'Online duel',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('#queue-join').disabled);
-      if(relay)await page.locator('#force-relay').check();
+      await page.getByRole('button',{name:'Find opponent',exact:true}).click();
+      await page.waitForFunction(()=>document.querySelector('#online-status').textContent.includes('Searching'));
+      await page.getByRole('button',{name:'Cancel search',exact:true}).click();
+      await page.waitForFunction(()=>document.querySelector('#online-status').textContent.includes('Search cancelled'));
+      await page.waitForFunction(()=>!document.querySelector('#queue-join').disabled);
+
     }
     await pages[0].getByRole('button',{name:'Find opponent',exact:true}).click();
     await pages[0].waitForFunction(()=>document.querySelector('#online-status').textContent.includes('Searching'));
     await pages[1].getByRole('button',{name:'Find opponent',exact:true}).click();
     await Promise.all(pages.map(page=>page.waitForFunction(()=>document.querySelector('#connection-status').textContent.includes('Online ·'),{},{timeout:20000})));
-    if(relay)await Promise.all(pages.map(page=>page.waitForFunction(()=>document.querySelector('#connection-status').textContent.includes('· relay ·'))));
+    if(relay)await Promise.all(pages.map(page=>page.waitForFunction(()=>document.querySelector('#connection-status').textContent.endsWith('· relay'))));
     console.log(`Playing complete ${relay?'TURN':'direct'} match with normal inputs (${inputs.length} scripted ticks)…`);
     await Promise.all(pages.map(page=>page.waitForFunction(()=>!document.querySelector('#result').hidden,{},{timeout:80000})));
     for(const page of pages)assert.match(await page.locator('#winner').textContent(),/Player 1 wins · 5 : 0/);
-    await pages[0].locator('#online-replay-download').waitFor({state:'visible'});
-    const downloadPromise=pages[0].waitForEvent('download');await pages[0].locator('#online-replay-download').click();const download=await downloadPromise;
-    const path=`artifacts/full-${relay?'relay':'direct'}-replay.json`;await download.saveAs(path);
-    const {stdout}=await promisify(execFile)('go',['run','./cmd/replaycheck',path]);const result=JSON.parse(stdout);assert.equal(result.winner,0);assert.deepEqual(result.scores,[5,0]);
     await Promise.all(pages.map(page=>page.getByRole('button',{name:'Rematch',exact:true}).click()));
     await Promise.all(pages.map(page=>page.waitForFunction(()=>document.querySelector('#result').hidden&&document.querySelector('#connection-status').textContent.includes('Online ·'),{},{timeout:20000})));
     for(const page of pages)assert.equal(await page.locator('#status strong').nth(4).textContent(),'0');
-    await pages[0].getByRole('button',{name:'Online duel',exact:true}).click();await pages[0].getByRole('button',{name:'Leave online',exact:true}).click();
+    await pages[0].getByRole('button',{name:'Online duel',exact:true}).click();await pages[0].getByRole('button',{name:'Practice offline',exact:true}).click();
     await pages[1].waitForFunction(()=>/Left match|disconnected/i.test(document.querySelector('#connection-status').textContent));
-    await writeFile(`artifacts/full-${relay?'relay':'direct'}-match.json`,JSON.stringify({normalInputs:true,firstToFive:true,rematch:true,leave:true,validation:result},null,2)+'\n');
-    console.log(`Complete ${relay?'TURN':'direct'} match, Go replay validation and rematch passed.`);
+    await writeFile(`artifacts/full-${relay?'relay':'direct'}-match.json`,JSON.stringify({normalInputs:true,firstToFive:true,rematch:true,leave:true},null,2)+'\n');
+    console.log(`Complete ${relay?'TURN':'direct'} match and rematch passed.`);
   }catch(error){await writeFile('artifacts/full-match-failure.json',JSON.stringify(await Promise.all(pages.map(page=>page.evaluate(()=>({connection:document.querySelector('#connection-status').textContent,status:document.querySelector('#online-status').textContent,hud:document.querySelector('#status').textContent})))),null,2));throw error;}finally{await Promise.all(contexts.map(context=>context.close()));}
 }

@@ -323,3 +323,50 @@ func TestOversizedWebSocketMessageIsClosed(t *testing.T) {
 		t.Fatal("oversized message accepted")
 	}
 }
+
+func TestSharedGuestWindowsAndReconnect(t *testing.T) {
+	f := setup(t)
+	cookie := f.guest(t)
+	connect := func(instance string) *websocket.Conn {
+		t.Helper()
+		header := http.Header{"Origin": {f.server.URL}, "Cookie": {cookie.String()}}
+		c, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(f.server.URL, "http")+"/ws?instance="+instance, header)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = c.Close() })
+		return c
+	}
+	a := connect(strings.Repeat("a", 32))
+	next(t, a, "welcome")
+	send(t, a, map[string]any{"type": "hello", "region": "eu", "identity": f.hub.cfg.Identity})
+	next(t, a, "hello")
+	send(t, a, map[string]any{"type": "queue"})
+	next(t, a, "queued")
+	b := connect(strings.Repeat("b", 32))
+	next(t, b, "welcome")
+	send(t, b, map[string]any{"type": "hello", "region": "eu", "identity": f.hub.cfg.Identity})
+	next(t, b, "hello")
+	send(t, b, map[string]any{"type": "queue"})
+	first := next(t, a, "match")
+	second := next(t, b, "match")
+	if first["match"].(map[string]any)["id"] != second["match"].(map[string]any)["id"] {
+		t.Fatal("windows did not match")
+	}
+	resumed := connect(strings.Repeat("a", 32))
+	if next(t, resumed, "welcome")["resumed"] != true {
+		t.Fatal("page did not resume")
+	}
+	restored := next(t, resumed, "match")
+	if restored["match"].(map[string]any)["id"] != first["match"].(map[string]any)["id"] {
+		t.Fatal("reconnect lost match")
+	}
+	send(t, resumed, map[string]any{"type": "leave"})
+	next(t, b, "ended")
+	f.hub.Cleanup()
+	f.hub.mu.Lock()
+	defer f.hub.mu.Unlock()
+	if len(f.hub.clients) != 2 {
+		t.Fatal("cleanup incorrectly expired page instances")
+	}
+}

@@ -38,8 +38,8 @@ try {
       localStorage.setItem('cavern-controls',JSON.stringify(['KeyW','KeyA','KeyD','Space','ArrowUp','ArrowLeft','ArrowRight','Enter','KeyT']));
       sessionStorage.setItem('controls-migration-seeded','true');
     }
-    window.testSounds=0;
-    const Audio=window.AudioContext;window.AudioContext=class extends Audio{createOscillator(){window.testSounds++;return super.createOscillator();}};
+    window.testSounds=0;window.testThrustSounds=0;
+    const Audio=window.AudioContext;window.AudioContext=class extends Audio{createBufferSource(){window.testThrustSounds++;return super.createBufferSource();}createOscillator(){window.testSounds++;return super.createOscillator();}};
     window.testGPUDevices=[];window.testGPUUnavailable=false;
     const requestAdapter=navigator.gpu.requestAdapter.bind(navigator.gpu);
     navigator.gpu.requestAdapter=async options=>{
@@ -54,10 +54,25 @@ try {
   await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('FUEL'));
   await page.waitForTimeout(500);
   assert.equal(await page.locator('body').evaluate(e=>e.classList.contains('unavailable')),false);
+  assert.equal(await page.locator('#online-options, .home-hint, .online-description').count(),0);
+  assert.equal(await page.locator('#queue-join').isVisible(),true);
+  assert.equal(await page.locator('#status').isVisible(),false);
+  assert.equal(await page.locator('#local-menu').isVisible(),false);
+  await page.screenshot({path:'artifacts/online-home.png'});
+  await page.setViewportSize({width:390,height:844});
+  assert.equal(await page.locator('#queue-join').isVisible(),true);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.screenshot({path:'artifacts/online-home-mobile.png'});
+  await page.setViewportSize({width:1440,height:1000});
+  await page.getByRole('button',{name:'Practice offline',exact:true}).click();
+  assert.equal(await page.locator('#online-panel').isVisible(),false);
+  assert.equal(await page.locator('#status').isVisible(),true);
+  await page.locator('#local-menu summary').click();
   await page.getByRole('button',{name:'Controls',exact:true}).click();
-  assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('cavern-controls'))),['KeyW','KeyA','KeyD','Space','KeyT']);
+  assert.equal(await page.getByLabel('Sound effects',{exact:true}).isChecked(),true);
+  assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('cavern-controls'))),['KeyW','KeyA','KeyD','Space']);
   assert.equal(await page.locator('#controls-panel fieldset').count(),1);
-  assert.equal(await page.getByRole('button',{name:'Restart or rematch',exact:true}).textContent(),'T');
+  assert.equal(await page.getByRole('button',{name:'Restart or rematch',exact:true}).count(),0);
   await page.getByRole('button',{name:'Thrust',exact:true}).click();
   await page.keyboard.press('a');
   assert.match(await page.locator('#controls-panel output').textContent(),/already assigned/);
@@ -65,11 +80,14 @@ try {
   assert.equal(await page.getByRole('button',{name:'Thrust',exact:true}).textContent(),'I');
   await page.getByRole('button',{name:'Done',exact:true}).click();
   await page.reload();
+  await page.getByRole('button',{name:'Practice offline',exact:true}).click();
+  await page.locator('#local-menu summary').click();
   await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('ON PAD'));
   await page.keyboard.down('w');await page.waitForTimeout(100);await page.keyboard.up('w');
   assert.match(await page.locator('#status').textContent(),/ON PAD/);
   await page.keyboard.down('i');await page.waitForTimeout(250);await page.keyboard.up('i');
   assert.match(await page.locator('#status').textContent(),/IN FLIGHT/);
+  assert.ok(await page.evaluate(()=>window.testThrustSounds)>0,'thrust starts an engine sound by default');
   await page.getByRole('button',{name:'Controls',exact:true}).click();
   await page.getByRole('button',{name:'Restore default controls',exact:true}).click();
   await page.getByLabel('Sound effects',{exact:true}).check();
@@ -88,9 +106,11 @@ try {
   const fuel=await page.locator('#status strong').nth(0).textContent();
   assert.ok(parseInt(fuel)<100,'thrust consumes fuel');
   await page.screenshot({path:'artifacts/flight.png'});
+  const tickBeforeR=await page.evaluate(()=>window.testPracticeFrame.state[0]);
   await page.keyboard.press('r');
   await page.waitForTimeout(100);
-  assert.equal(await page.locator('#status strong').nth(0).textContent(),'100%');
+  assert.ok(await page.evaluate(()=>window.testPracticeFrame.state[0])>tickBeforeR,'R does not restart the simulation');
+  await page.locator('#local-menu summary').click();
   await page.getByRole('button',{name:'Landing course',exact:true}).click();
   await page.waitForTimeout(150);
   assert.equal(await page.evaluate(()=>window.testPracticeFrame.computerButtons),0);
@@ -105,18 +125,7 @@ try {
   assert.match(await page.locator('#status').textContent(),/IN FLIGHT/);
   await page.keyboard.down('Space');await page.waitForTimeout(300);await page.keyboard.up('Space');
   assert.ok(await page.evaluate(()=>window.testSounds)>0,'firing creates sound voices after enabling audio');
-  await page.getByRole('button',{name:'Rollback lab',exact:true}).click();
-  await page.getByRole('button',{name:'Run 15-second scenario',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelector('#lab-status').textContent.includes('Converged'));
-  await page.locator('#replay-seek').fill('420');
-  await page.waitForFunction(()=>document.querySelector('#seek-tick').textContent==='420');
-  const downloadPromise=page.waitForEvent('download');
-  await page.getByRole('button',{name:'Save replay',exact:true}).click();
-  const download=await downloadPromise;await download.saveAs('artifacts/browser-replay.json');
-  await page.locator('#replay-file').setInputFiles('artifacts/browser-replay.json');
-  await page.waitForFunction(()=>document.querySelector('#lab-status').textContent.includes('Replay validated'));
-  await page.screenshot({path:'artifacts/rollback.png'});
-  await page.getByRole('button',{name:'Close laboratory',exact:true}).click();
+  assert.equal(await page.locator('#lab-open, #lab-panel').count(),0);
   const tickBeforeLoss=await page.evaluate(()=>window.testPracticeFrame.state[0]);
   await page.evaluate(()=>window.testGPUDevices.at(-1).destroy());
   await page.waitForFunction(()=>document.querySelector('canvas').dataset.graphicsGeneration==='2');
@@ -134,7 +143,7 @@ try {
   assert.equal(await page.locator('#graphics-status').isVisible(),false);
   await page.screenshot({path:'artifacts/graphics-recovered.png'});
   assert.deepEqual(errors,[]);
-  console.log('Browser flight, WebGPU validation, keyboard input and reset passed. Screenshot: artifacts/flight.png');
+  console.log('Browser flight, WebGPU validation, keyboard input and removed restart shortcut passed. Screenshot: artifacts/flight.png');
   if(process.argv.includes('--peer'))await checkPeer(browser,base);
   if(process.argv.includes('--turn')){const turn=await startTurn();try{await checkLobby(browser,turn);await checkPeer(browser,base,turn);}finally{await turn.close();}}
   else if(process.argv.includes('--lobby'))await checkLobby(browser);

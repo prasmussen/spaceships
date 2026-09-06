@@ -1,6 +1,6 @@
 # Cavern Duel
 
-A work-in-progress implementation of `plan.txt`: online spaceship deathmatch, flight/landing practice, online invite/queue play, and an interactive rollback/replay laboratory. Gameplay is handwritten WAT compiled to WASM. TypeScript workers run the simulation; WebGPU renders the cave.
+A work-in-progress implementation of `plan.txt`: online spaceship deathmatch, flight/landing practice, automatic online matchmaking, and developer rollback/replay tests. Gameplay is handwritten WAT compiled to WASM. TypeScript workers run the simulation; WebGPU renders the cave.
 
 Requires a recent Node.js (22.18+ for the TypeScript test modules) and a desktop WebGPU browser.
 
@@ -10,9 +10,9 @@ npm run build
 npm run dev
 ```
 
-Open the printed localhost URL. Use **W/A/D** or **Up/Left/Right arrows** to fly, and **Space** to fire. Multiplayer requires a separate browser for each player through Online duel. **R** restarts. Open Controls to change your bindings or the restart/rematch key. Bindings persist in this browser; the footer always shows the current keys. Enable Sound effects in Controls for shots, impacts and landing cues. Particle bursts are deduplicated across rollback. Reduce camera motion disables cosmetic particles (gameplay debris stays visible), velocity look-ahead and correction offsets; its initial value follows the system preference. Release left/right to automatically stop rotation. Release thrust to coast with gentle drag; counter-thrust to brake faster. Thruster exhaust pushes nearby ships behind you, including gently sliding parked ships along their landing pads. Land upright and slowly on your own illuminated pad to refuel. Other terrain contact crashes; shots take three hull points to kill. First to five wins; tied winning scores continue until one player leads.
+Open the printed localhost URL. Use **W/A/D** or **Up/Left/Right arrows** to fly, and **Space** to fire. Multiplayer requires a separate browser for each player through Online duel. Reload the page to restart. Open Controls to change your flight bindings. Bindings persist in this browser; the footer always shows the current keys. Sound is on by default; mute it in Controls. Particle bursts are deduplicated across rollback. Reduce camera motion disables cosmetic particles (gameplay debris stays visible), velocity look-ahead and correction offsets; its initial value follows the system preference. Release left/right to automatically stop rotation. Release thrust to coast with gentle drag; counter-thrust to brake faster. Thruster exhaust pushes nearby ships behind you, including gently sliding parked ships along their landing pads. Land upright and slowly on your own illuminated pad to refuel. Other terrain contact crashes; shots take three hull points to kill. First to five wins; tied winning scores continue until one player leads.
 
-Select Flight lab to face a computer ship in an enclosed arena. It follows a fixed back-and-forth patrol, fires short bursts, and returns to its pad to refuel. Its normal controls allow weapon, collision, and exhaust interactions; restart repeats the route, and respawn starts it again. Select Landing course to practice refueling. Rollback lab runs two independent peers behind configurable delay/loss/outages, compares them with a reference replay, and lets you seek, save or open a validated replay. Focus loss clears controls; hidden tabs pause standalone play. Graphics device loss triggers automatic resource rebuilding while the simulation continues. If the GPU remains unavailable, Retry graphics attempts recovery without resetting the match.
+Select Flight lab to face a computer ship in an enclosed arena. It follows a fixed back-and-forth patrol, fires short bursts, and returns to its pad to refuel. Its normal controls allow weapon, collision, and exhaust interactions; reloading repeats the route, and respawn starts it again. Select Landing course to practice refueling. Rollback scenarios remain available in the automated developer tests. Focus loss clears controls; hidden tabs pause standalone play. Graphics device loss triggers automatic resource rebuilding while the simulation continues. If the GPU remains unavailable, Retry graphics attempts recovery without resetting the match.
 
 ```sh
 npm test                            # simulation, collision, combat, rollback, replay, desync
@@ -35,10 +35,8 @@ The build pins WABT, concatenates handwritten WAT fragments, inserts checked-in 
 
 The Go guest/lobby/signaling service is implemented: after building, run `go run ./cmd/server` to serve the app and APIs on port 8080. See [service configuration](docs/server.md) and [peer packet formats](docs/protocol.md).
 
-For online play, open the Go-served app in two browsers, select Online duel, connect, create/join an invite and have both players select Ready. Each player can use either control set. Find opponent joins the selected region’s queue. See [TURN setup and testing](docs/turn.md) for connections across networks; the force-relay option requires a working TURN service.
+For online play, open the Go-served app in two browser windows and select Find opponent. Matches start automatically. See [TURN setup and testing](docs/turn.md) for connections across networks.
 
-Validate an exported laboratory replay with `go run ./cmd/replaycheck artifacts/browser-replay.json`. See [replay validation](docs/replays.md).
-
-Use Capture replay in the online panel to save confirmed play; a final recording is also prepared when you leave or the match ends. Open the downloaded JSON in Rollback lab, or validate it with the Go command above.
+Developer replay validation remains available with `go run ./cmd/replaycheck path/to/replay.json`. See [replay validation](docs/replays.md).
 
 See [complete-match verification](docs/match-acceptance.md) and [HTTPS/WSS deployment](docs/deployment.md) for the container build and Caddy setup. Public deployment and release acceptance remain in progress. [PROGRESS.md](PROGRESS.md) tracks the full original scope and verification limits.

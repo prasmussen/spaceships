@@ -269,6 +269,15 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "guest session required", http.StatusUnauthorized)
 		return
 	}
+	// A guest cookie is shared by windows; only reconnect the same page instance.
+	key := token
+	if instance := r.URL.Query().Get("instance"); instance != "" {
+		if decoded, err := hex.DecodeString(instance); err != nil || len(decoded) != 16 {
+			http.Error(w, "invalid page instance", http.StatusBadRequest)
+			return
+		}
+		key += ":" + strings.ToLower(instance)
+	}
 	upgrader := websocket.Upgrader{CheckOrigin: s.origin, HandshakeTimeout: 5 * time.Second, ReadBufferSize: 4096, WriteBufferSize: 4096}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -277,7 +286,7 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 	now := s.cfg.Now()
 	c := &client{token: token, conn: conn, send: make(chan any, 64), done: make(chan struct{}), connected: true, last: now, window: now}
 	s.mu.Lock()
-	if old := s.clients[token]; old != nil {
+	if old := s.clients[key]; old != nil {
 		c.room = old.room
 		c.region = old.region
 		c.hello = old.hello
@@ -297,7 +306,7 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	s.clients[token] = c
+	s.clients[key] = c
 	s.send(c, map[string]any{"type": "welcome", "identity": s.cfg.Identity, "resumed": c.hello, "region": c.region})
 	if room := s.rooms[c.room]; room != nil {
 		s.roomState(room)
@@ -312,7 +321,7 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 		_ = conn.Close()
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		if s.clients[token] == c {
+		if s.clients[key] == c {
 			c.connected = false
 			c.last = s.cfg.Now()
 			if room := s.rooms[c.room]; room != nil {
@@ -336,7 +345,7 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.mu.Lock()
-		if s.clients[token] != c {
+		if s.clients[key] != c {
 			s.mu.Unlock()
 			return
 		}
@@ -637,7 +646,7 @@ func (s *Server) Cleanup() {
 	defer s.mu.Unlock()
 	now := s.cfg.Now()
 	for token, c := range s.clients {
-		expired := !s.sessions[token].expires.After(now)
+		expired := !s.sessions[c.token].expires.After(now)
 		if expired || !c.connected && now.Sub(c.last) > 10*time.Second || c.connected && now.Sub(c.last) > 30*time.Minute {
 			s.leave(c)
 			delete(s.clients, token)

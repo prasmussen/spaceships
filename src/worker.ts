@@ -18,7 +18,6 @@ onmessage = ({ data }) => {
   if (data.type === 'input') buttons = data.buttons;
   if (data.type === 'pause') { paused = data.paused; buttons = 0; deadline = performance.now(); }
   if (data.type === 'mode') { map = data.mode ? 32768 : 32769; computer.reset();computerButtons=0; if(sim) {sim.init(1024,map,0); deadline=performance.now();frame();} }
-  if (data.type === 'reset' && sim) { sim.init(1024, map, 0); computer.reset();computerButtons=0;deadline = performance.now(); frame(); }
 };
 async function start() {
   const { instance } = await WebAssembly.instantiateStreaming(fetch('/simulation.wasm'));

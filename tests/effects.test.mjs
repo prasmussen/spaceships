@@ -34,3 +34,67 @@ test('gameplay debris stays visible when cosmetic particles are disabled',()=>{
   frame.set([100*65536,200*65536,0,0,186,0,1,0x10000000],48);
   effects.consume(frame);assert.equal(effects.writeFragments(buffer),1);
 });
+test('thrust loops once while held and stops for release, empty fuel, death, mute and reset',()=>{
+  const original=globalThis.AudioContext,sources=[];
+  class Node {
+    gain={value:0,cancelScheduledValues(){},setTargetAtTime(){}};
+    frequency={value:0};Q={value:0};
+    connect(){} disconnect(){} start(){this.started=true;} stop(){this.stopped=true;}
+  }
+  globalThis.AudioContext=class {
+    state='running';currentTime=0;sampleRate=100;
+    createGain(){return new Node();}
+    createBuffer(){return {getChannelData:()=>new Float32Array(100)};}
+    createBufferSource(){const node=new Node();sources.push(node);return node;}
+    createOscillator(){return new Node();}
+    createBiquadFilter(){return new Node();}
+    resume(){return Promise.resolve();}
+  };
+  try{
+    let sound=true;
+    const effects=new Effects(()=>({sound,particles:false})),frame=eventFrame(0);
+    frame[1]=-1;frame[22]=100;frame[23]=3;
+    effects.unlock();effects.thrust(frame,[1,0]);effects.thrust(frame,[1,0]);
+    assert.equal(sources.length,1);assert.equal(sources[0].started,true);assert.equal(sources[0].stopped,undefined);
+    effects.thrust(frame,[0,0]);assert.equal(sources[0].stopped,true);
+    effects.thrust(frame,[1,0]);frame[22]=0;effects.thrust(frame,[1,0]);assert.equal(sources.at(-1).stopped,true);
+    frame[22]=100;effects.thrust(frame,[1,0]);frame[23]=0;effects.thrust(frame,[1,0]);assert.equal(sources.at(-1).stopped,true);
+    frame[23]=3;effects.thrust(frame,[1,0]);sound=false;effects.unlock();assert.equal(sources.at(-1).stopped,true);
+    const count=sources.length;effects.thrust(frame,[1,0]);assert.equal(sources.length,count);
+    sound=true;effects.thrust(frame,[1,0]);effects.clear();assert.equal(sources.at(-1).stopped,true);
+    effects.thrust(frame,[1,0]);frame[1]=0;effects.thrust(frame,[1,0]);assert.equal(sources.at(-1).stopped,true);
+  }finally{globalThis.AudioContext=original;}
+});
+test('combat destruction and crashes play one blast each, respect mute, and release audio nodes',()=>{
+  const original=globalThis.AudioContext,blasts=[],booms=[];
+  class Node {
+    gain={value:0,setValueAtTime(){},exponentialRampToValueAtTime(){}};
+    frequency={setValueAtTime(){},exponentialRampToValueAtTime(){}};Q={value:0};
+    connect(){} disconnect(){this.disconnected=true;}
+    start(time){this.started=time;} stop(time){this.stopped=time;}
+  }
+  globalThis.AudioContext=class {
+    state='running';currentTime=1;sampleRate=100;
+    createGain(){return new Node();}
+    createBuffer(_,length){return {getChannelData:()=>new Float32Array(length)};}
+    createBufferSource(){const node=new Node();blasts.push(node);return node;}
+    createOscillator(){const node=new Node();booms.push(node);return node;}
+    createBiquadFilter(){return new Node();}
+    resume(){return Promise.resolve();}
+  };
+  try{
+    let sound=true;
+    const effects=new Effects(()=>({sound,particles:false})),frame=eventFrame(2);
+    frame[2100]=4;frame[2108]=5;
+    effects.unlock();effects.consume(frame);effects.consume(frame);
+    assert.equal(blasts.length,2);assert.equal(booms.length,2);
+    for(const node of [...blasts,...booms]){
+      assert.equal(node.started,1);assert.ok(node.stopped>1.5);
+      node.onended();assert.equal(node.disconnected,true);
+    }
+    effects.clear();sound=false;effects.consume(frame);
+    assert.equal(blasts.length,2);assert.equal(booms.length,2);
+    effects.clear();sound=true;effects.consume(frame);
+    assert.equal(blasts.length,4);
+  }finally{globalThis.AudioContext=original;}
+});

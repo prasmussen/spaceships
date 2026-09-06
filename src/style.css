@@ -4,12 +4,41 @@ nav{pointer-events:auto;display:flex;gap:8px;margin-top:24px}button{cursor:point
 
 #status{max-width:510px;gap:18px}#result{pointer-events:auto;position:absolute;top:45%;left:50%;transform:translate(-50%,-50%);background:#0d1e28;border:1px solid #61dbc0;padding:30px;text-align:center;box-shadow:0 10px 80px #000}#result[hidden]{display:none}#result h2{font-weight:500}
 
-#lab-panel{position:fixed;right:28px;top:28px;z-index:10;width:410px;max-width:calc(100vw - 40px);max-height:90vh;overflow:auto;background:#0e1d27;border:1px solid #42616b;border-radius:8px;padding:22px;box-shadow:0 12px 80px #000b}#lab-panel[hidden]{display:none}.lab-title{display:flex;align-items:center;justify-content:space-between;gap:15px}.lab-title h2{font-weight:500;font-size:20px;margin:0}.lab-title button{font-size:20px;padding:0 8px}#lab-form{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:20px 0}#lab-form label,.seek-label{font-size:12px;color:#a9c1c4}select{display:block;margin-top:6px;width:100%;padding:8px;background:#162c38;color:#e0eeeb;border:1px solid #3e5c65;border-radius:4px}#lab-run{grid-column:1 / -1;background:#16473c;color:#a9f0d8}#lab-status{display:block;font-size:12px;line-height:1.8;color:#91e9d0;border-top:1px solid #2c454f;padding-top:12px}.seek-label{display:block;margin-top:20px}#replay-seek{display:block;width:100%;margin:12px 0;accent-color:#61dbc0}.lab-actions{display:flex;gap:12px;align-items:center}.file-button{position:relative;overflow:hidden;padding:8px;font-size:12px;cursor:pointer}.file-button input{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}button:disabled{opacity:.5;cursor:default}
+.panel-title{display:flex;align-items:center;justify-content:space-between;gap:15px}.panel-title h2{font-weight:500;font-size:20px;margin:0}.panel-title button{font-size:20px;padding:0 8px}button:disabled{opacity:.5;cursor:default}
 
-#online-panel{position:fixed;right:28px;top:28px;z-index:11;width:410px;max-width:calc(100vw - 40px);max-height:90vh;overflow:auto;background:#0e1d27;border:1px solid #42616b;border-radius:8px;padding:22px;box-shadow:0 12px 80px #000b}#online-panel[hidden]{display:none}#online-panel label{font-size:12px}#online-region{display:inline-block;width:90px;margin:15px}#online-connect{float:right;margin-top:12px}.online-actions{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}#invite-form{display:flex;align-items:end;gap:8px}#invite-code{display:block;background:#162c38;color:#d6e9e6;border:1px solid #3e5c65;border-radius:4px;padding:10px;width:200px;font-size:16px;letter-spacing:.15em}#online-status{display:block;font-size:12px;color:#91e9d0;line-height:1.6;margin-top:18px}#connection-status{font-size:11px;color:#8de1c9;margin-top:12px}#connection-status:empty{display:none}.relay-option{display:block;color:#96acb3}#diagnostic-download{font-size:12px;color:#a7eedc}
+#online-panel{position:fixed;right:28px;top:28px;z-index:11;width:410px;max-width:calc(100vw - 40px);max-height:90vh;overflow:auto;background:#0e1d27;border:1px solid #42616b;border-radius:8px;padding:22px;box-shadow:0 12px 80px #000b}#online-panel[hidden]{display:none}#online-panel label{font-size:12px}.online-actions{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}#online-status{display:block;font-size:12px;color:#91e9d0;line-height:1.6;margin-top:18px}#connection-status{font-size:11px;color:#8de1c9;margin-top:12px}#connection-status:empty{display:none}
 
 #graphics-status{position:fixed;z-index:30;left:50%;top:40%;transform:translate(-50%,-50%);max-width:90vw;padding:22px;background:#0e1d27;border:1px solid #c58352;border-radius:8px;box-shadow:0 12px 80px #000b}#graphics-status[hidden]{display:none}#graphics-status p{color:#e2d7c7;line-height:1.6}
 
 nav{flex-wrap:wrap}#controls-panel{background:#0e1d27;color:#cee7e5;border:1px solid #42616b;border-radius:8px;padding:24px;width:470px;max-width:90vw;max-height:90vh}#controls-panel::backdrop{background:#000a}#controls-panel h2{margin-top:0}#controls-panel p{line-height:1.6}#controls-panel fieldset{border:1px solid #334a51;margin:16px 0;padding:12px}#controls-panel legend{font-size:14px}#controls-panel div{display:flex;justify-content:space-between;align-items:center;margin:6px 0;gap:20px;font-size:13px}#controls-panel output{display:block;min-height:40px;font-size:12px;color:#91e9d0;margin:12px 0}#controls-panel>button{margin-right:10px}
 
 #controls-panel>label{display:block;font-size:13px;margin:12px 0}
+
+#online-panel [hidden]{display:none}#queue-join{background:#244e50;border-color:#78d8bd}
+
+
+/* Online is the entry screen; flight UI appears when a game starts. */
+.home-intro{display:none}
+#local-menu{position:relative}
+#local-menu summary{cursor:pointer;font-size:12px;padding:9px 14px;color:#91a8ad}
+#local-menu>div{position:absolute;top:100%;left:0;display:grid;gap:8px;width:190px;padding:12px;background:#0e1d27;border:1px solid #334a51;border-radius:6px;z-index:12}
+#local-menu button{text-align:left}
+.online-home #view{filter:blur(3px) brightness(.4)}
+.online-home #overlay{z-index:12;padding:24px;justify-content:flex-end;align-items:center}
+.online-home #overlay>header,.online-home #status,.online-home #result,.online-home footer,.online-home #connection-status,.online-home #online-open,.online-home #local-menu{display:none}
+.online-home nav{margin:0}
+.online-home #controls-open{background:transparent;border-color:transparent;color:#a6bebb}
+.online-home #online-panel{left:50%;right:auto;top:50%;transform:translate(-50%,-50%);width:480px;max-height:calc(100dvh - 120px);padding:40px;background:linear-gradient(150deg,#152d36f5,#0c1a25fa);border-color:#42616b;border-radius:16px;box-shadow:0 24px 100px #0009}
+.online-home .home-intro{display:block}
+.online-home .home-intro h1{font-size:48px;letter-spacing:-.055em;margin:14px 0 10px;font-weight:550}
+.online-home .home-intro p{color:#a9c2c1;font-size:16px}
+.online-home #online-panel .panel-title{display:none}
+
+.online-home .online-actions{display:grid;gap:10px;margin:24px 0 0}
+.online-home .online-actions button{padding:15px;font-size:15px}
+.online-home #queue-join,.online-home #queue-cancel{background:#8ce6cd;border-color:#8ce6cd;color:#0c2724;font-weight:600}
+.online-home #online-leave{background:transparent;border-color:#344b54;color:#b6cccd}
+.online-home #online-status{margin-top:16px;text-align:center;min-height:20px}
+
+
+@media(max-width:600px){.online-home #online-panel{padding:26px;max-width:calc(100vw - 32px)}.online-home .home-intro h1{font-size:40px}.online-home #overlay{padding:14px}}
