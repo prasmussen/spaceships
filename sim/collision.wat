@@ -1,7 +1,5 @@
-  ;; Arena keeps the first eight solids: four perimeter walls and four pad platforms.
-  (func $solid_count (result i32)
-    (if (result i32) (i32.eq (i32.load (i32.const 4104)) (i32.const 2))
-      (then (i32.const 8)) (else (i32.load (i32.const 32780)))))
+  ;; Practice and online share the same visible, collidable landmarks.
+  (func $solid_count (result i32) (i32.load (i32.const 32780)))
   ;; Integer swept circle versus axis-aligned polygon edges and rounded corners.
   ;; Time uses [0,65536]; 65537 means no contact. Equal times preserve solid ID.
   (func $abs (param $v i32) (result i32)

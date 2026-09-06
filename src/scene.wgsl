@@ -36,7 +36,7 @@ fn exhaust(p:vec2f,power:f32,player:u32)->vec3f {
   var color=vec3f(.025,.044,.062);
   if(min(grid.x,grid.y)<.7){color+=vec3f(.025,.044,.05);}
   if(view.mode>.5) {
-    let solidCount=select(arrayLength(&terrain)-4u,8u,view.mode>1.5);
+    let solidCount=arrayLength(&terrain)-4u;
     for(var i=0u;i<solidCount;i++) {
       let rect=terrain[i];
       if(world.x>=rect.x && world.x<=rect.z && world.y>=rect.y && world.y<=rect.w) {

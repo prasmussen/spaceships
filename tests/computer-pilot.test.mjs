@@ -17,7 +17,7 @@ test('computer patrol repeats after reset and survives multiple refueling circui
       fired||=Boolean(bits&8);
       engine.step([0,bits]);
       const state=engine.frame();
-      left||=state[32]<1150*65536;
+      left||=state[32]<2400*65536;
       right||=left&&state[32]>2700*65536;
       if(state[40]&&!grounded)landings++;
       grounded=Boolean(state[40]);

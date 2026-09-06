@@ -11,10 +11,10 @@ test('arena starts on two working pads, supports launch, landing and refueling',
   st[16]=450*Q;st[17]=1683.5*Q;st[18]=0;st[19]=.5*Q;st[20]=0;st[21]=0;st[22]=1000;
   step(s,0,3);assert.equal(st[24],1);assert.ok(st[22]>1000);
 });
-test('ships and debris cross the arena center but collide with its perimeter',async()=>{
+test('ships and debris collide with arena landmarks and the perimeter',async()=>{
   const {s,st}=await create();st[16]=1400*Q;st[17]=1000*Q;st[18]=64*Q;st[24]=0;
   st.set([1400*Q,1100*Q,64*Q,0,186,0,1,0x10000000],80);st[3]=1;
-  step(s,0,4);assert.equal(st[23],3);assert.ok(st[16]>1600*Q);assert.ok(st[80]>1600*Q);assert.equal(st[82],64*Q);
+  step(s,0,4);assert.equal(st[23],0);assert.ok(st[16]<1450*Q);assert.ok(st[80]<1450*Q);assert.ok(st[82]<0);
   st[16]=100*Q;st[17]=1000*Q;st[18]=-64*Q;step(s);assert.equal(st[23],0);
 });
 test('arena snapshots retain map identity and reproduce future movement',async()=>{
@@ -22,12 +22,12 @@ test('arena snapshots retain map identity and reproduce future movement',async()
   assert.equal(s.load_state(65536,8512),1);step(s,1,20);assert.equal(s.state_hash(),hash);assert.equal(st[2],2);
 });
 
-test('expanded map has four supported pads and substantially more open space',async()=>{
+test('arena landmarks cover the map while preserving open routes and supported pads',async()=>{
   const cave=JSON.parse(await readFile('sim/cave.json','utf8'));
   assert.equal(cave.width*cave.height,3200*2000*4);
   assert.equal(cave.pads.length,4);
-  // The arena retains only perimeter walls and the four small pad platforms.
-  const solidArea=cave.solids.slice(0,8).reduce((sum,[x0,y0,x1,y1])=>sum+(x1-x0)*(y1-y0),0);
-  assert.ok(solidArea/(cave.width*cave.height)<.11);
+  const solidArea=cave.solids.reduce((sum,[x0,y0,x1,y1])=>sum+(x1-x0)*(y1-y0),0);
+  assert.ok(solidArea/(cave.width*cave.height)<.25);
+  for(let y=0;y<4;y++)for(let x=0;x<4;x++)assert.ok(cave.solids.slice(8).some(([x0,y0,x1,y1])=>x0<(x+1)*1600&&x1>x*1600&&y0<(y+1)*1000&&y1>y*1000),`landmark in sector ${x},${y}`);
   for(const pad of cave.pads)assert.ok(cave.solids.slice(4,8).some(([x0,y0,x1])=>y0===pad.y&&x0<=pad.x-pad.halfWidth&&x1>=pad.x+pad.halfWidth));
 });

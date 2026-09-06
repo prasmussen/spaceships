@@ -27,7 +27,7 @@ export class ComputerPilot {
     const x=state[o+0]/65536,y=state[o+1]/65536;
     const vx=state[o+2]/65536,vy=state[o+3]/65536;
     const angle=state[o+4]*Math.PI/2048,spin=state[o+5]*Math.PI/2048;
-    const turnX=this.homeX<1600?this.homeX+1650:this.homeX-1650;
+    const turnX=this.homeX<1600?this.homeX+400:this.homeX-400;
     const targets=[[this.homeX,this.homeY-300],[turnX,this.homeY-300],[this.homeX,this.homeY-300],[this.homeX,this.homeY-10]];
     let [tx,ty]=targets[this.phase];
     if(this.phase<3&&Math.abs(tx-x)<20&&Math.abs(ty-y)<20&&Math.abs(vx)<.3&&Math.abs(vy)<.3){
