@@ -23,7 +23,7 @@
     (if (i32.eqz (i32.load (i32.const 4104))) (then (return)))
     (local.set $r (i32.add (local.get $r) (i32.const 128)))
     (local.set $rect (i32.const 32832))
-    (local.set $end (i32.add (local.get $rect) (i32.mul (i32.load (i32.const 32780)) (i32.const 16))))
+    (local.set $end (i32.add (local.get $rect) (i32.mul (call $solid_count) (i32.const 16))))
     (loop $rects
       (local.set $x (i32.load (local.get $p))) (local.set $y (i32.load offset=4 (local.get $p)))
       (local.set $left (i32.sub (i32.load (local.get $rect)) (local.get $r)))

@@ -17,7 +17,8 @@ fn tint(player:u32)->vec3f { return select(vec3f(.18,.85,.72),vec3f(1.,.48,.25),
   var color=vec3f(.025,.044,.062);
   if(min(grid.x,grid.y)<.7){color+=vec3f(.025,.044,.05);}
   if(view.mode>.5) {
-    for(var i=0u;i<arrayLength(&terrain)-2u;i++) {
+    let solidCount=select(arrayLength(&terrain)-2u,6u,view.mode>1.5);
+    for(var i=0u;i<solidCount;i++) {
       let rect=terrain[i];
       if(world.x>=rect.x && world.x<=rect.z && world.y>=rect.y && world.y<=rect.w) {
         color=vec3f(.075,.12,.15);

@@ -20,7 +20,7 @@ One fixed 256 KiB memory; no imports and no growth.
 | 40000 | Per-tick pending damage/crash flags and old ship positions (scratch) |
 | 131072 | Event count and up to 512 32-byte event records (scratch) |
 
-`init(1024, map, seed)` accepts map 0 for the open flight lab or 32768 for the cave. It validates frozen config/map bytes before changing state. Seed is reserved: gameplay has no randomness. Both ships start full; cave ships start grounded at their own pads.
+`init(1024, map, seed)` accepts map 0 for unbounded arithmetic tests, 32768 for the cave, or 32769 for the Flight lab arena. It validates frozen config/map bytes before changing state. Seed is reserved: gameplay has no randomness. Both ships start full; cave and arena ships start grounded at their own pads.
 
 `step(2048, count)` consumes 0–120 records. Input bits: thrust 1, left 2, right 4; fire 8. Inputs stay constant over both substeps. A step returns 1 on success, 0 on invalid ABI arguments or tick overflow. All simulation exports have fixed destinations; hosts cannot make them overwrite immutable data through arbitrary pointers.
 
@@ -54,6 +54,8 @@ Spatial quantities are signed Q16.16. Multiplication widens to i64 and divides b
 Semi-implicit Euler updates velocity before position and spin before angle. Two substeps run per 60 Hz tick. No passive damping is applied. The camera is purely cosmetic and uses floating-point damping on the main thread.
 
 Cave geometry uses axis-aligned rectangular solid polygons quantized to integer world units. Grid queries OR candidate bitsets across the swept circle's bounding box, then visit solids by ascending ID. Swept collision checks offset faces and rounded corners. TOI is an integer fraction in [0, 65536]; 65537 denotes no hit. Face division truncates, and corner searches return the first intersecting quantized time. Contact positions can differ from the mathematical continuous surface by at most a substep's displacement divided by 65536 plus fixed-point rounding; landing permits 64 Q16 integer units of surface error (less than 0.001 world unit). Circle corner bounding checks occur before multiplying the closest-point numerator, preserving i64 bounds at the capped displacement.
+
+The arena uses the cave perimeter and two pad platforms (the first six solids), with all central obstacles omitted from rendering and every collision query.
 
 Ship radius is 16 world units. Landing requires downward travel from above, the full circle footprint in the player's own pad, and all four tuning thresholds. Grounding zeros velocity, spin and orientation. Refueling runs per substep only while grounded; thrust launches and consumes fuel. Other terrain contact stops movement and records a pending crash. All damage and crashes are resolved after both physics substeps, preserving projectile trades. A same-tick terrain crash takes precedence over projectile death for cause/scoring, deducts one point, and starts a 120-tick respawn timer. Ship-to-ship contact sweeps both radius-16 hulls using relative motion in each substep. Both ships stop at contact and crash, each losing one point and emitting an explosion, even during spawn protection. Dead ships do not collide.
 

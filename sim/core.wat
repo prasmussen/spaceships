@@ -23,8 +23,8 @@
   (func $sin (param $a i32) (result i32)
     (i32.load (i32.add (i32.const 16384) (i32.shl (i32.and (local.get $a) (i32.const 4095)) (i32.const 2)))))
   (func (export "init") (param $config i32) (param $map i32) (param $seed i32) (result i32)
-    ;; Frozen versioned tuning. map_ptr 0 selects flight lab; 32768 selects cave.
-    (if (i32.or (i32.ne (local.get $config) (i32.const 1024)) (i32.and (i32.ne (local.get $map) (i32.const 0)) (i32.ne (local.get $map) (i32.const 32768)))) (then (return (i32.const 0))))
+    ;; Map 0 is the unbounded test world; 32768 is cave, 32769 is the arena.
+    (if (i32.or (i32.ne (local.get $config) (i32.const 1024)) (i32.and (i32.ne (local.get $map) (i32.const 0)) (i32.or (i32.lt_u (local.get $map) (i32.const 32768)) (i32.gt_u (local.get $map) (i32.const 32769))))) (then (return (i32.const 0))))
     ;; CONFIG_VALIDATE
     ;; MAP_VALIDATE
     (i32.store (i32.const 131072) (i32.const 0))
@@ -37,7 +37,7 @@
     (i32.store (i32.const 4188) (i32.const 3))
     (i32.store (i32.const 4252) (i32.const 3))
     (if (local.get $map) (then
-      (i32.store (i32.const 4104) (i32.const 1))
+      (i32.store (i32.const 4104) (i32.sub (local.get $map) (i32.const 32767)))
       (call $spawn (i32.const 4160)) (call $spawn (i32.const 4224))))
     (i32.const 1))
   (func $flight (param $p i32) (param $buttons i32)

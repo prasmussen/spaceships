@@ -1,3 +1,7 @@
+  ;; Arena keeps the first six solids: four perimeter walls and two pad platforms.
+  (func $solid_count (result i32)
+    (if (result i32) (i32.eq (i32.load (i32.const 4104)) (i32.const 2))
+      (then (i32.const 6)) (else (i32.load (i32.const 32780)))))
   ;; Integer swept circle versus axis-aligned polygon edges and rounded corners.
   ;; Time uses [0,65536]; 65537 means no contact. Equal times preserve solid ID.
   (func $abs (param $v i32) (result i32)
@@ -85,4 +89,4 @@
         (local.set $t (call $min (local.get $t) (call $rect_toi (local.get $x) (local.get $y) (local.get $dx) (local.get $dy)
           (i32.add (i32.const 32832) (i32.mul (local.get $id) (i32.const 16))) (local.get $r))))))
       (local.set $id (i32.add (local.get $id) (i32.const 1)))
-      (br_if $solids (i32.lt_u (local.get $id) (i32.load (i32.const 32780))))) (local.get $t))
+      (br_if $solids (i32.lt_u (local.get $id) (call $solid_count)))) (local.get $t))
