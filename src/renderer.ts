@@ -1,7 +1,7 @@
 import cave from '../sim/cave.json';
 import shader from './scene.wgsl?raw';
 import {FlightInterpolation,PositionCorrection} from './presentation';
-import type {Effects} from './effects';
+import {MAX_FRAGMENTS,FRAGMENT_STRIDE,type Effects} from './effects';
 type FrameSource=()=>{state:Int32Array;buttons:number[];localSlot?:number;correction?:number;reducedMotion?:boolean;snap:boolean;didSnap:()=>void};
 export async function render(canvas:HTMLCanvasElement,effects:Effects,get:FrameSource){
   const notice=document.createElement('section');notice.id='graphics-status';notice.hidden=true;notice.setAttribute('role','status');
@@ -40,18 +40,20 @@ async function createRenderer(canvas:HTMLCanvasElement,effects:Effects,get:Frame
   const module=device.createShaderModule({code:shader});
   const layout=device.createBindGroupLayout({entries:[
     {binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}},
-    ...[1,2,3].map(binding=>({binding,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'read-only-storage' as const}}))
+    ...[1,2,3,4].map(binding=>({binding,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'read-only-storage' as const}}))
   ]});
   const pipelineLayout=device.createPipelineLayout({bindGroupLayouts:[layout]});
   const scene=await device.createRenderPipelineAsync({layout:pipelineLayout,vertex:{module,entryPoint:'vs'},fragment:{module,entryPoint:'fs',targets:[{format}]}});
   const projectiles=await device.createRenderPipelineAsync({layout:pipelineLayout,vertex:{module,entryPoint:'bullet_vs'},fragment:{module,entryPoint:'bullet_fs',targets:[{format,blend:{color:{srcFactor:'src-alpha',dstFactor:'one'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]}});
+  const debris=await device.createRenderPipelineAsync({layout:pipelineLayout,vertex:{module,entryPoint:'fragment_vs'},fragment:{module,entryPoint:'fragment_fs',targets:[{format,blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]}});
   const buffer=(size:number,usage:number)=>device.createBuffer({size,usage:usage|GPUBufferUsage.COPY_DST});
   const uniform=buffer(32,GPUBufferUsage.UNIFORM);
   const terrainData=new Float32Array([...cave.solids.flat(),...cave.pads.flatMap(p=>[p.x-p.halfWidth,p.y,p.x+p.halfWidth,p.y])]);
   const terrain=buffer(terrainData.byteLength,GPUBufferUsage.STORAGE);
   const ships=buffer(64,GPUBufferUsage.STORAGE),bullets=buffer(12288,GPUBufferUsage.STORAGE);
+  const fragments=buffer(MAX_FRAGMENTS*FRAGMENT_STRIDE*4,GPUBufferUsage.STORAGE),fragmentData=new Float32Array(MAX_FRAGMENTS*FRAGMENT_STRIDE);
   device.queue.writeBuffer(terrain,0,terrainData);
-  const group=device.createBindGroup({layout,entries:[uniform,terrain,ships,bullets].map((buffer,binding)=>({binding,resource:{buffer}}))});
+  const group=device.createBindGroup({layout,entries:[uniform,terrain,ships,bullets,fragments].map((buffer,binding)=>({binding,resource:{buffer}}))});
   const shipData=new Float32Array(16),bulletData=new Float32Array(3072);
   const corrections=[new PositionCorrection(),new PositionCorrection()];
   const flight=[new FlightInterpolation(),new FlightInterpolation()];
@@ -80,15 +82,17 @@ async function createRenderer(canvas:HTMLCanvasElement,effects:Effects,get:Frame
     if(snap&&state[0]>0)didSnap();
     for(let i=0;i<256;i++){const o=48+i*8;bulletData.set([state[o]/65536,state[o+1]/65536,state[o+5],state[o+4]>0?1:0],i*4);}
     const particleCount=effects.write(bulletData,1024,now);
+    const fragmentCount=effects.writeFragments(fragmentData,now);
+    if(fragmentCount)device.queue.writeBuffer(fragments,0,fragmentData,0,fragmentCount*FRAGMENT_STRIDE);
     device.queue.writeBuffer(ships,0,shipData);device.queue.writeBuffer(bullets,0,bulletData);
     const encoder=device.createCommandEncoder();
     const pass=encoder.beginRenderPass({colorAttachments:[{view:context.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
     device.queue.writeBuffer(uniform,0,new Float32Array([canvas.width,canvas.height,...camera,state[2],0,0,0]));
-    pass.setBindGroup(0,group);pass.setPipeline(scene);pass.draw(3);pass.setPipeline(projectiles);pass.draw(6,256+particleCount);
+    pass.setBindGroup(0,group);pass.setPipeline(scene);pass.draw(3);pass.setPipeline(projectiles);pass.draw(6,256+particleCount);pass.setPipeline(debris);pass.draw(6,fragmentCount);
     pass.end();device.queue.submit([encoder.finish()]);animation=requestAnimationFrame(draw);
     }catch{lost=true;onLost();}
   }
   animation=requestAnimationFrame(draw);
-  return ()=>{disposed=true;cancelAnimationFrame(animation);for(const buffer of [uniform,terrain,ships,bullets])buffer.destroy();device.destroy();};
+  return ()=>{disposed=true;cancelAnimationFrame(animation);for(const buffer of [uniform,terrain,ships,bullets,fragments])buffer.destroy();device.destroy();};
   }catch(error){disposed=true;device.destroy();throw error;}
 }

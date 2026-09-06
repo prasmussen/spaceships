@@ -56,3 +56,27 @@ struct BulletOut { @builtin(position) position:vec4f, @location(0) local:vec2f, 
 @fragment fn bullet_fs(in:BulletOut)->@location(0) vec4f {
   return vec4f(in.color,in.alpha*exp(-dot(in.local,in.local)*4.));
 }
+struct Fragment { position:vec2f, angle:f32, size:f32, player:f32, alpha:f32, shade:f32, strip:f32, vertices:array<vec2f,4> };
+@group(0) @binding(4) var<storage,read> fragments:array<Fragment>;
+struct FragmentOut { @builtin(position) position:vec4f, @location(0) color:vec3f, @location(1) alpha:f32, @location(2) local:vec2f, @location(3) @interpolate(flat) shape:u32 };
+@vertex fn fragment_vs(@builtin(vertex_index) vertex:u32,@builtin(instance_index) instance:u32)->FragmentOut {
+  let piece=fragments[instance];
+  let indices=array<u32,6>(0u,1u,2u,0u,2u,3u);
+  let local=piece.vertices[indices[vertex]];
+  let uv=array<vec2f,4>(vec2f(0,0),vec2f(1,0),vec2f(0,1),vec2f(1,1));
+  let c=cos(piece.angle);let s=sin(piece.angle);
+  let rotated=vec2f(c*local.x-s*local.y,s*local.x+c*local.y);
+  let screen=(piece.position-view.camera+rotated)/(view.size*.5);
+  var out:FragmentOut;out.position=vec4f(screen.x,-screen.y,0.,1.);
+  out.local=uv[indices[vertex]];out.shape=u32(piece.strip);
+  // Painted plates and bright cut edges stay readable as solid ship parts.
+  let metal=mix(vec3f(.22,.28,.31),vec3f(.65,.72,.74),piece.shade);
+  out.color=mix(metal,tint(u32(piece.player)),select(.75,.95,piece.strip>.5));
+  out.color*=.75+.25*abs(cos(piece.angle));out.alpha=piece.alpha;return out;
+}
+@fragment fn fragment_fs(in:FragmentOut)->@location(0) vec4f {
+  let bary=vec3f(in.local,1.-in.local.x-in.local.y);
+  let edge=min(min(bary.x/max(fwidth(bary.x),.001),bary.y/max(fwidth(bary.y),.001)),bary.z/max(fwidth(bary.z),.001));
+  let rim=select(1.-smoothstep(.0,.85,edge),.6,in.shape==1u);
+  return vec4f(mix(in.color,vec3f(.8,.94,.95),rim*.6),in.alpha);
+}
