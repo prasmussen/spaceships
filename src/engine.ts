@@ -6,7 +6,7 @@ export class Engine {
   readonly seed:number;
   readonly players:number;
   constructor(instance:WebAssembly.Instance,map=32768,seed=0,players=2){
-    if(!Number.isInteger(players)||players<2||players>4)throw Error('Invalid player count');
+    if(!Number.isInteger(players)||players<1||players>4)throw Error('Invalid player count');
     this.map=map;this.seed=seed;this.players=players;
     this.wasm=instance.exports as Simulation;
     if(!this.wasm.init(1024,map,seed,players))throw Error('Invalid simulation configuration');

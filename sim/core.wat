@@ -29,7 +29,7 @@
   (func $crash_ptr (param $id i32) (result i32) (i32.add (i32.const 40016) (i32.mul (local.get $id) (i32.const 4))))
   (func (export "init") (param $config i32) (param $map i32) (param $seed i32) (param $players i32) (result i32)
     (local $id i32) (local $p i32)
-    (if (i32.or (i32.lt_u (local.get $players) (i32.const 2)) (i32.gt_u (local.get $players) (i32.const 4))) (then (return (i32.const 0))))
+    (if (i32.or (i32.lt_u (local.get $players) (i32.const 1)) (i32.gt_u (local.get $players) (i32.const 4))) (then (return (i32.const 0))))
     ;; Map 0 is the unbounded test world; 32768 is cave, 32769 is the arena.
     (if (i32.or (i32.ne (local.get $config) (i32.const 1024)) (i32.and (i32.ne (local.get $map) (i32.const 0)) (i32.or (i32.lt_u (local.get $map) (i32.const 32768)) (i32.gt_u (local.get $map) (i32.const 32769))))) (then (return (i32.const 0))))
     ;; CONFIG_VALIDATE
@@ -222,10 +222,10 @@
     (local.set $i (i32.const 0))
     (loop $scores
       (local.set $a (i32.load offset=108 (i32.add (local.get $src) (i32.mul (local.get $i) (i32.const 64)))))
-      ;; A player can kill up to N-1 opponents in one tick.
+      ;; Scores can carry over from a four-pilot roster (at most three kills per tick).
       (if (i32.or (i32.lt_s (local.get $a) (i32.sub (i32.const 0) (i32.load (local.get $src))))
         (i64.gt_s (i64.extend_i32_s (local.get $a))
-          (i64.mul (i64.extend_i32_u (i32.load (local.get $src))) (i64.extend_i32_u (i32.sub (call $players) (i32.const 1)))))) (then (return (i32.const 0))))
+          (i64.mul (i64.extend_i32_u (i32.load (local.get $src))) (i64.const 3)))) (then (return (i32.const 0))))
       (local.set $i (i32.add (local.get $i) (i32.const 1)))
       (br_if $scores (i32.lt_u (local.get $i) (call $players))))
     (if (i32.ne (i32.load offset=4 (local.get $src)) (call $winner (local.get $src))) (then (return (i32.const 0))))

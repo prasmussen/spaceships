@@ -43,4 +43,4 @@ nav{flex-wrap:wrap}#controls-panel{background:#0e1d27;color:#cee7e5;border:1px s
 
 @media(max-width:600px){.online-home #online-panel{padding:26px;max-width:calc(100vw - 32px)}.online-home .home-intro h1{font-size:40px}.online-home #overlay{padding:14px}}
 
-select{font:inherit;font-size:12px;color:#d5e8e8;background:#101e28;border:1px solid #42616b;border-radius:5px;padding:9px 12px}select:focus-visible{outline:2px solid #fafafa;outline-offset:3px}#online-panel>label{display:block;margin:22px 0 8px}#online-players{width:100%}#local-menu label{display:block;margin:12px 0 6px}
+select{font:inherit;font-size:12px;color:#d5e8e8;background:#101e28;border:1px solid #42616b;border-radius:5px;padding:9px 12px}select:focus-visible{outline:2px solid #fafafa;outline-offset:3px}#online-panel>label{display:block;margin:22px 0 8px}#local-menu label{display:block;margin:12px 0 6px}

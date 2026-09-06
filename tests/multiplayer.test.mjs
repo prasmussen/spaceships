@@ -71,7 +71,7 @@ test('higher-slot exhaust and debris affect opponents without hull damage',async
 });
 test('player count, unused slots, owners and input-vector length are validated',async()=>{
   const {engine,st}=await game(3);const hash=engine.hash();
-  for(const count of [0,1,5,-1])assert.equal(engine.wasm.init(1024,0,0,count),0);
+  for(const count of [0,5,-1])assert.equal(engine.wasm.init(1024,0,0,count),0);
   assert.equal(engine.hash(),hash);assert.throws(()=>engine.step([0,0]));assert.throws(()=>engine.step([0,0,32]));
   for(const offset of [20,64+3*64]){const snapshot=engine.save();new DataView(snapshot.buffer).setInt32(offset,4,true);assert.throws(()=>engine.load(snapshot));assert.equal(engine.hash(),hash);}
   engine.step([8,8,8]);const snapshot=engine.save();new DataView(snapshot.buffer).setInt32(320+20,3,true);assert.throws(()=>engine.load(snapshot));

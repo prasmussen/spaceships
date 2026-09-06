@@ -41,6 +41,9 @@ type Config struct {
 	Now               func() time.Time
 }
 type Match struct {
+	Quick        bool     `json:"quick,omitempty"`
+	Snapshot     []byte   `json:"snapshot,omitempty"`
+	Slots        []int    `json:"slots,omitempty"`
 	Players      int      `json:"players"`
 	ID           string   `json:"id"`
 	Epoch        uint32   `json:"epoch"`
@@ -70,26 +73,33 @@ type client struct {
 	messages  int
 }
 type room struct {
-	code     string
-	members  []*client
-	ready    []bool
-	reported []bool
-	winner   *int
-	match    *Match
-	region   string
+	quick        bool
+	previous     []*client
+	transition   string
+	authority    *client
+	transitionAt time.Time
+	code         string
+	members      []*client
+	ready        []bool
+	reported     []bool
+	winner       *int
+	match        *Match
+	region       string
 }
 type message struct {
-	Players   int             `json:"players"`
-	Recipient *int            `json:"recipient"`
-	Type      string          `json:"type"`
-	Identity  Identity        `json:"identity"`
-	Region    string          `json:"region"`
-	Code      string          `json:"code"`
-	Ready     bool            `json:"ready"`
-	MatchID   string          `json:"matchId"`
-	Signal    json.RawMessage `json:"signal"`
-	Winner    *int            `json:"winner"`
-	Metrics   *Metrics        `json:"metrics"`
+	Transition string          `json:"transition"`
+	Snapshot   []byte          `json:"snapshot"`
+	Players    int             `json:"players"`
+	Recipient  *int            `json:"recipient"`
+	Type       string          `json:"type"`
+	Identity   Identity        `json:"identity"`
+	Region     string          `json:"region"`
+	Code       string          `json:"code"`
+	Ready      bool            `json:"ready"`
+	MatchID    string          `json:"matchId"`
+	Signal     json.RawMessage `json:"signal"`
+	Winner     *int            `json:"winner"`
+	Metrics    *Metrics        `json:"metrics"`
 }
 type Metrics struct {
 	Connections uint64 `json:"connections"`
@@ -307,6 +317,16 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		if room := s.rooms[c.room]; room != nil {
+			for i, p := range room.previous {
+				if p == old {
+					room.previous[i] = c
+				}
+			}
+			if room.authority == old {
+				room.authority = c
+			}
+		}
 		for i, p := range s.queue {
 			if p == old {
 				s.queue[i] = c
@@ -319,6 +339,9 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 		s.roomState(room)
 		if room.match != nil {
 			s.sendMatch(c, room)
+			if room.transition != "" {
+				s.requestTransition(room)
+			}
 		}
 	}
 	s.mu.Unlock()
@@ -415,7 +438,11 @@ func (s *Server) roomState(r *room) {
 	}
 }
 func (s *Server) sendMatch(c *client, r *room) {
-	for slot, p := range r.members {
+	members := r.members
+	if r.transition != "" {
+		members = r.previous
+	}
+	for slot, p := range members {
 		if p == c {
 			s.send(c, map[string]any{"type": "match", "slot": slot, "match": r.match})
 		}
@@ -452,6 +479,10 @@ func (s *Server) leave(c *client) {
 	r := s.rooms[c.room]
 	c.room = ""
 	if r == nil {
+		return
+	}
+	if r.quick {
+		s.quickLeave(r, c)
 		return
 	}
 	if r.match != nil {
@@ -532,6 +563,51 @@ func (s *Server) handle(c *client, m message) {
 		return
 	}
 	switch m.Type {
+	case "quickPlay":
+		if c.room != "" {
+			s.fail(c, "already in room")
+			return
+		}
+		s.unqueue(c)
+		for _, r := range s.rooms {
+			if r.quick && r.region == c.region && len(r.members) < 4 {
+				if r.previous == nil {
+					r.previous = append([]*client(nil), r.members...)
+				}
+				r.members = append(r.members, c)
+				r.ready = make([]bool, len(r.members))
+				c.room = r.code
+				s.transitionRoom(r)
+				return
+			}
+		}
+		if len(s.rooms) >= 5000 {
+			s.fail(c, "room capacity reached")
+			return
+		}
+		r := s.newRoom([]*client{c}, 1)
+		r.quick = true
+		s.startQuick(r, nil, nil)
+	case "snapshot":
+		r := s.rooms[c.room]
+		if r == nil || !r.quick || r.authority != c || r.transition == "" || m.Transition != r.transition || r.match == nil || m.MatchID != r.match.ID {
+			return
+		}
+		if len(m.Snapshot) != 8512 {
+			s.fail(c, "invalid room snapshot")
+			return
+		}
+		slots := make([]int, len(r.members))
+		for i, member := range r.members {
+			slots[i] = -1
+			for old, previous := range r.previous {
+				if member == previous {
+					slots[i] = old
+					break
+				}
+			}
+		}
+		s.startQuick(r, m.Snapshot, slots)
 	case "create":
 		if m.Players < 2 || m.Players > 4 {
 			s.fail(c, "invalid player count")
@@ -630,7 +706,13 @@ func (s *Server) handle(c *client, m message) {
 		s.start(r)
 	case "signal":
 		r := s.rooms[c.room]
+		if r != nil && r.transition != "" {
+			return
+		}
 		if r == nil || r.match == nil || r.match.ID != m.MatchID || len(m.Signal) == 0 || len(m.Signal) > 24000 || m.Recipient == nil || *m.Recipient < 0 || *m.Recipient >= len(r.members) || r.members[*m.Recipient] == nil || r.members[*m.Recipient] == c {
+			if r != nil && r.quick {
+				return
+			}
 			s.fail(c, "invalid room signal")
 			return
 		}
@@ -641,6 +723,9 @@ func (s *Server) handle(c *client, m message) {
 		}
 	case "finish":
 		r := s.rooms[c.room]
+		if r != nil && r.transition != "" {
+			return
+		}
 		if r == nil || r.match == nil || r.match.ID != m.MatchID {
 			s.fail(c, "unknown match")
 			return
@@ -663,6 +748,10 @@ func (s *Server) handle(c *client, m message) {
 			if !reported {
 				return
 			}
+		}
+		if r.quick {
+			s.startQuick(r, nil, nil)
+			return
 		}
 		s.broadcast(r, map[string]any{"type": "ended", "matchId": r.match.ID, "reason": "reported", "winner": m.Winner, "trust": "unverified"})
 		r.match = nil
@@ -711,6 +800,11 @@ func (s *Server) Cleanup() {
 			s.leave(c)
 			delete(s.clients, token)
 			_ = c.conn.Close()
+		}
+	}
+	for _, r := range s.rooms {
+		if r.quick && r.transition != "" && now.Sub(r.transitionAt) > 10*time.Second {
+			s.startQuick(r, nil, nil)
 		}
 	}
 	for token, v := range s.sessions {

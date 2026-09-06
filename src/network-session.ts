@@ -5,7 +5,7 @@ import {encodeInput,decodeInput,decodeControl} from './protocol.ts';
 import type {Control} from './protocol.ts';
 import type {Identity} from './replay.ts';
 import {recordReplay} from './replay.ts';
-export interface MatchConfig {id:string;players:number;epoch:number;seed:number;identity:Identity;inputDelay:number;recoveryPeer:number;region:string}
+export interface MatchConfig {quick?:boolean;snapshot?:string;slots?:number[];id:string;players:number;epoch:number;seed:number;identity:Identity;inputDelay:number;recoveryPeer:number;region:string}
 export interface SessionOutput {gameplay:(buffer:ArrayBuffer)=>void;control:(message:Control,recipient?:number)=>void;diagnostic:(value:unknown)=>void}
 /** Pure networking/simulation orchestration. Wall-clock scheduling and transport stay outside. */
 export class NetworkSession {
@@ -13,6 +13,8 @@ export class NetworkSession {
   readonly monitor:DesyncMonitor;
   readonly match:MatchConfig;
   readonly output:SessionOutput;
+  private checkedFinish=-1;
+  private finished:Int32Array|undefined;
   private remoteHashes=new Map<number,Map<number,string>>();
   private compared=new Set<number>();
   private recoveryAcks=new Set<number>();
@@ -92,6 +94,7 @@ export class NetworkSession {
   private repairMissing(){for(let sender=0;sender<this.match.players;sender++){if(sender===this.peer.player)continue;let from=this.peer.complete+1;while(from<=this.peer.tick+1&&this.peer.input[sender].has(from))from++;if(from<=this.peer.tick+1)this.output.control({type:'need',from,to:Math.min(this.peer.tick+1,from+119)},sender);}}
   resume(){this.output.control({type:'resume',epoch:this.match.epoch,tick:this.peer.tick,complete:this.peer.complete});this.sendLatest();this.repairMissing();}
   async replay(binary:BufferSource){
+    if(this.match.snapshot)throw Error('Replay export is unavailable for a room joined mid-round');
     const inputs=this.peer.confirmedInputs();
     if(!inputs.length||inputs.length>216000)throw Error('Recording is empty or exceeds the one-hour replay limit');
     const tick=inputs.length-1,hash=this.peer.hashAt(tick),state=this.peer.snapshots.get(tick+1)?.slice();
@@ -138,7 +141,16 @@ export class NetworkSession {
   frame(){
     const current=this.peer.engine.frame(),frame=new Int32Array(2129+this.events.length);
     frame.set(current.subarray(0,2128));frame[2128]=this.events.length/8;frame.set(this.events,2129);this.events=[];
-    const confirmed=this.peer.snapshots.get(Math.min(this.peer.agreed,this.peer.tick-1)+1);
+    const limit=Math.min(this.peer.agreed,this.peer.tick-1);
+    if(this.match.quick&&!this.finished){
+      for(let tick=this.checkedFinish+1;tick<=limit;tick++){
+        const snapshot=this.peer.snapshots.get(tick+1);if(!snapshot)continue;
+        const state=new Int32Array(snapshot.buffer,snapshot.byteOffset,snapshot.byteLength/4);
+        if(Array.from({length:this.match.players},(_,id)=>state[27+id*16]).some(score=>score>=5)){this.finished=state.slice();break;}
+      }
+      this.checkedFinish=limit;
+    }
+    const confirmed=this.finished?new Uint8Array(this.finished.buffer):this.peer.snapshots.get(limit+1);
     if(confirmed){const state=new Int32Array(confirmed.buffer,confirmed.byteOffset,confirmed.byteLength/4);frame[1]=state[1];for(let id=0;id<this.match.players;id++)frame[27+id*16]=state[27+id*16];}
     else{frame[1]=-1;for(let id=0;id<this.match.players;id++)frame[27+id*16]=0;}
     return frame;

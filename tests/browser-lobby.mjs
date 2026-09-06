@@ -1,3 +1,4 @@
+import {checkQuickPlay} from './browser-quick-play.mjs';
 import {checkOnlineGroups} from './browser-multiplayer.mjs';
 import {execFile,spawn} from 'node:child_process';
 import {promisify} from 'node:util';
@@ -51,79 +52,7 @@ export async function checkLobby(browser,turn){
     const rematch=await pages[0].evaluate(()=>window.lobbyMessages.find(m=>m.type==='match').match);assert.notEqual(rematch.id,id);assert.notEqual(rematch.epoch,matches[0].match.epoch);
     await send(pages[0],{type:'leave'});await wait(pages[0],'left');await wait(pages[1],'ended');
     await writeFile('artifacts/lobby-browser.json',JSON.stringify({guestCookies:true,invite:true,slots:[0,1],signaling:true,unverifiedResults:true,rematch:true,leave:true},null,2)+'\n');
-    const gamePages=[];
-    const sharedContext=await browser.newContext();contexts.push(sharedContext);
-    for(let p=0;p<2;p++){
-      const page=await sharedContext.newPage();gamePages.push(page);
-      if(turn)await page.addInitScript(()=>{
-        const NativeWorker=window.Worker;
-        window.Worker=class extends NativeWorker{
-          constructor(url,options){
-            super(url,options);
-            if(String(url).includes('online-worker'))this.addEventListener('message',({data})=>{if(data.type==='frame')window.onlineTestTick=data.tick;});
-          }
-        };
-      });
-      await page.goto(base);
-      await page.evaluate(()=>{window.lobbyConnections=0;const WS=window.WebSocket;window.WebSocket=class extends WS{constructor(...args){super(...args);window.activeLobbySocket=this;window.lobbyConnections++;}};});
-      if(turn)await page.evaluate(()=>{window.relayPCs=[];const PC=window.RTCPeerConnection;window.RTCPeerConnection=class extends PC{constructor(config){super({...config,iceTransportPolicy:'relay'});window.relayPCs.push(this);this.addEventListener('icecandidateerror',e=>{window.relayICEError={code:e.errorCode,text:e.errorText,url:e.url}});}};});
-      await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('FUEL'));
-      await page.getByRole('button',{name:'Find opponent',exact:true}).click();
-      await page.waitForFunction(()=>document.querySelector('#online-status').textContent.includes('Searching'));
-      await page.getByRole('button',{name:'Cancel search',exact:true}).click();
-      await page.waitForFunction(()=>document.querySelector('#online-status').textContent.includes('Search cancelled'));
-    }
-    for(const page of gamePages){
-      assert.equal(await page.locator('#online-connect, #invite-create, #invite-form, #online-region, #force-relay').count(),0);
-      assert.equal(await page.locator('#queue-cancel').isVisible(),false);
-    }
-    await gamePages[0].getByRole('button',{name:'Find opponent',exact:true}).click();
-    await gamePages[0].waitForFunction(()=>document.querySelector('#online-status').textContent.includes('Searching'));
-    assert.equal(await gamePages[0].locator('#queue-join').isVisible(),false);
-    await gamePages[1].getByRole('button',{name:'Find opponent',exact:true}).click();
-    await Promise.all(gamePages.map(page=>page.waitForFunction(()=>document.querySelector('#connection-status').textContent.includes('Online ·'),{},{timeout:20000}))).catch(async error=>{if(turn)await writeFile('artifacts/relay-failure.json',JSON.stringify(await Promise.all(gamePages.map(page=>page.evaluate(async()=>({status:document.querySelector('#connection-status').textContent,error:window.relayICEError,pcs:await Promise.all(window.relayPCs.map(async pc=>({ice:pc.iceConnectionState,local:pc.localDescription,remote:pc.remoteDescription,stats:[...(await pc.getStats()).values()]})))})))),null,2));throw error;});
-    if(turn)await Promise.all(gamePages.map(page=>page.waitForFunction(()=>document.querySelector('#connection-status').textContent.endsWith('· relay'))));
-    await Promise.all(gamePages.map(page=>page.keyboard.down('w')));
-    await gamePages[0].keyboard.down('Space');await gamePages[1].keyboard.down('d');
-    await gamePages[0].waitForTimeout(600);
-    await Promise.all(gamePages.map(page=>page.keyboard.up('w')));await gamePages[0].keyboard.up('Space');await gamePages[1].keyboard.up('d');
-    assert.ok(Number(await gamePages[1].locator('#status strong').nth(3).textContent())>0,'remote slot controls its own rotation');
-    assert.ok(parseInt(await gamePages[0].locator('#status strong').first().textContent())<100,'online input consumes local fuel');
-    if(turn)await Promise.all(gamePages.map(page=>page.waitForFunction(()=>window.onlineTestTick>=200)));
-    let reconnectRequests=0;
-    await gamePages[0].route('**/api/session',route=>{reconnectRequests++;return reconnectRequests===1?route.abort('failed'):route.continue();});
-    await gamePages[0].evaluate(()=>window.activeLobbySocket.close());
-    await gamePages[0].waitForFunction(()=>window.lobbyConnections>=2&&window.activeLobbySocket.readyState===WebSocket.OPEN);
-    await gamePages[0].waitForFunction(()=>document.querySelector('#connection-status').textContent.includes('Online ·'));
-    assert.ok(reconnectRequests>=2,'HTTP failure retries within reconnect grace');
-    await gamePages[0].unroute('**/api/session');
-    await gamePages[0].screenshot({path:'artifacts/online-match.png'});
-    await gamePages[0].getByRole('button',{name:'Online duel',exact:true}).click();await gamePages[0].getByRole('button',{name:'Practice offline',exact:true}).click();
-    assert.equal(await gamePages[0].locator('[data-mode]').first().getAttribute('aria-pressed'),'true');
-    await gamePages[0].waitForFunction(()=>document.querySelector('#status').textContent.includes('ON PAD'));
-    await gamePages[1].waitForFunction(()=>/Left match|disconnected/i.test(document.querySelector('#connection-status').textContent));
-    await gamePages[0].getByRole('button',{name:'Online duel',exact:true}).click();
-    await gamePages[1].getByRole('button',{name:'Practice offline',exact:true}).click();
-    await Promise.all(gamePages.map(page=>page.waitForFunction(()=>document.querySelector('#online-status').textContent.includes('You left'))));
-    await gamePages[1].getByRole('button',{name:'Online duel',exact:true}).click();
-    await gamePages[0].getByRole('button',{name:'Find opponent',exact:true}).click();
-    await gamePages[0].waitForFunction(()=>document.querySelector('#online-status').textContent.includes('Searching'));
-    await gamePages[0].getByRole('button',{name:'Cancel search',exact:true}).click();
-    await gamePages[0].waitForFunction(()=>document.querySelector('#online-status').textContent.includes('Search cancelled'));
-    for(let round=0;round<2;round++){
-      await Promise.all(gamePages.map(page=>page.getByRole('button',{name:'Find opponent',exact:true}).click()));
-      await Promise.all(gamePages.map(page=>page.waitForFunction(()=>document.querySelector('#connection-status').textContent.includes('Online ·'),{},{timeout:20000})));
-      if(turn)await Promise.all(gamePages.map(page=>page.waitForFunction(()=>document.querySelector('#connection-status').textContent.endsWith('· relay'))));
-      await gamePages[1].keyboard.down('w');await gamePages[1].waitForTimeout(250);await gamePages[1].keyboard.up('w');
-      assert.match(await gamePages[1].locator('#status').textContent(),/IN FLIGHT/);
-      await gamePages[0].getByRole('button',{name:'Online duel',exact:true}).click();await gamePages[0].getByRole('button',{name:'Practice offline',exact:true}).click();
-      await gamePages[1].waitForFunction(()=>/Left match|disconnected/i.test(document.querySelector('#connection-status').textContent));
-      await gamePages[1].getByRole('button',{name:'Practice offline',exact:true}).click();
-      await Promise.all(gamePages.map(page=>page.waitForFunction(()=>document.querySelector('#online-status').textContent.includes('You left'))));
-      await Promise.all(gamePages.map(page=>page.getByRole('button',{name:'Online duel',exact:true}).click()));
-    }
-    await writeFile(turn?'artifacts/relay-browser.json':'artifacts/online-browser.json',JSON.stringify({automaticMatchmaking:true,sharedCookieWindows:true,forcedRelay:!!turn,webRTC:true,bothControls:true,leave:true,httpReconnect:true,queueCancel:true,queueAndRequeue:true},null,2)+'\n');
-    console.log('Online matchmaking UI passed through the Go service and real WebRTC: automatic start, flight controls and leave.');
+    await checkQuickPlay(browser,base,!!turn);
     if(process.argv.includes('--multiplayer'))await checkOnlineGroups(browser,base,!!turn);
     console.log('Go service browser checks passed: guest cookies, invite, ready, signaling, finish, rematch and leave.');
     if(process.argv.includes('--full-match'))await checkFullMatch(browser,base,!!turn);

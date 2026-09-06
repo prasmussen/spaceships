@@ -3,9 +3,10 @@ import type {Control} from './protocol.ts';
 import type {MatchConfig} from './network-session.ts';
 import type {Replay} from './replay.ts';
 export interface PeerCallbacks {
+ snapshot?:(snapshot:string,transition:string)=>void;
  signal:(signal:unknown)=>void;
  refreshICE?:()=>Promise<RTCIceServer[]>;
- frame:(data:{inputs:number[];buffer:ArrayBuffer;tick:number;complete:number;agreed:number;stalled:boolean;rollbacks:number;maxDepth:number;stalls:number;desyncs:number})=>void;
+ frame:(data:{quick?:boolean;inputs:number[];buffer:ArrayBuffer;tick:number;complete:number;agreed:number;stalled:boolean;rollbacks:number;maxDepth:number;stalls:number;desyncs:number})=>void;
  status:(status:string)=>void;
  ended:(reason:string)=>void;
  diagnostic:(bundle:unknown)=>void;
@@ -180,6 +181,7 @@ export class PeerMatch {
   readonly match:MatchConfig;
   readonly slot:number;
   readonly links=new Map<number,PeerLink>();
+  private changing=false;
   private readyLinks=new Set<number>();
   private readyPeers=new Set<number>();
   private startAcks=new Set<number>();
@@ -197,7 +199,7 @@ export class PeerMatch {
   get relay(){return [...this.links.values()].some(link=>link.relay);}
   constructor(match:MatchConfig,slot:number,iceServers:RTCIceServer[],privateCallbacks:PeerCallbacks,forceRelay=false){
     this.callbacks=privateCallbacks;this.match=match;this.slot=slot;
-    if(!Number.isInteger(match.players)||match.players<2||match.players>4||!Number.isInteger(slot)||slot<0||slot>=match.players)throw Error('Invalid assigned slots');
+    if(!Number.isInteger(match.players)||match.players<1||match.players>4||!Number.isInteger(slot)||slot<0||slot>=match.players)throw Error('Invalid assigned slots');
     let resolveBoot!:()=>void;const booted=new Promise<void>(resolve=>{resolveBoot=resolve;});
     this.worker=new Worker(new URL('./online-worker.ts',import.meta.url),{type:'module'});
     this.worker.onmessage=({data})=>{
@@ -208,7 +210,8 @@ export class PeerMatch {
       }
       if(this.closed)return;
       try{
-        if(data.type==='booted')resolveBoot();
+        if(data.type==='booted'){resolveBoot();if(match.players===1&&!this.changing){this.startAt=performance.now();this.begin();}}
+        else if(data.type==='snapshot')this.callbacks.snapshot?.(data.snapshot,data.transition);
         else if(data.type==='error')this.close(data.message);
         else if(data.type==='gameplay')for(const link of this.links.values())link.sendGameplay(data.buffer);
         else if(data.type==='control')this.controlTo(data.message,data.recipient);
@@ -226,16 +229,18 @@ export class PeerMatch {
         signal:signal=>this.callbacks.signal({recipient:remote,signal}),refreshICE:this.callbacks.refreshICE,
         ready:()=>{this.readyLinks.add(remote);this.meshReady();},resume:()=>{if(this.started)this.worker.postMessage({type:'resume'});},
         gameplay:buffer=>{if(!this.closed)this.worker.postMessage({type:'gameplay',sender:remote,buffer},[buffer]);},
-        control:message=>this.control(message,remote),status:status=>this.callbacks.status(status),ended:reason=>this.close(reason)
+        control:message=>this.control(message,remote),status:status=>this.callbacks.status(status),ended:reason=>{if(!match.quick)this.close(reason);else this.callbacks.status('Updating room…');}
       },booted,forceRelay);this.links.set(remote,link);
     }
     this.timer=setInterval(()=>{
+      if(this.changing)return;
       if(!this.started&&performance.now()>this.deadline)this.close('Connection handshake timed out');
-      else if(this.stalledAt!==undefined&&performance.now()-this.stalledAt>10000)this.close('Disconnected: input synchronization timed out');
+      else if(this.stalledAt!==undefined&&performance.now()-this.stalledAt>(match.quick?15000:10000))this.close('Disconnected: input synchronization timed out');
     },500);
   }
   private readonly callbacks:PeerCallbacks;
   private meshReady(){
+    if(this.changing)return;
     if(this.readyLinks.size!==this.match.players-1)return;
     this.readyPeers.add(this.slot);
     if(this.slot!==0)this.controlTo({type:'meshReady'},0);
@@ -262,18 +267,21 @@ export class PeerMatch {
       }
     }catch(error){this.close(String(error));}
   }
-  private begin(){this.started=true;this.worker.postMessage({type:'start',delayMs:Math.max(0,this.startAt-performance.now())});this.callbacks.status('Connected');}
+  private begin(){if(this.changing)return;this.started=true;this.worker.postMessage({type:'start',delayMs:Math.max(0,this.startAt-performance.now())});this.callbacks.status('Connected');}
   private controlTo(message:Control,recipient?:number){
     if(recipient===undefined){for(const link of this.links.values())link.sendControl(message);}
     else{const link=this.links.get(recipient);if(!link)throw Error('Invalid control recipient');link.sendControl(message);}
   }
   signal(value:unknown,sender:number){const link=this.links.get(sender);if(!link){this.close('Invalid signal sender');return;}link.signal(value);}
   resumeSignaling(){for(const link of this.links.values())link.resumeSignaling();}
+  pause(){this.changing=true;this.worker.postMessage({type:'stop'});}
+  snapshot(transition:string){this.pause();this.worker.postMessage({type:'snapshot',transition});}
   input(buttons:number){this.worker.postMessage({type:'input',buttons});}
   saveReplay(){if(!this.closed&&!this.replayPending){this.replayPending=true;this.worker.postMessage({type:'replay'});}}
   close(reason='Left match',notify=true){
     if(this.closed)return;this.closed=true;clearInterval(this.timer);
     for(const link of this.links.values())link.close(reason,notify);
+    if(this.match.quick){this.worker.terminate();this.callbacks.ended(reason);return;}
     this.worker.postMessage({type:'replay',finalize:true});
     this.shutdownTimer=setTimeout(()=>{this.worker.terminate();this.callbacks.replay?.(undefined,'Recording timed out');},30000);
     this.callbacks.ended(reason);

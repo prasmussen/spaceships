@@ -1,4 +1,4 @@
-import {Engine} from './engine.ts';
+import {restoreRoom} from './room-snapshot.ts';
 import {NetworkSession} from './network-session.ts';
 let session:NetworkSession|undefined,buttons=0,running=false,failed=false,deadline=0;
 let binary:ArrayBuffer|undefined;
@@ -11,9 +11,14 @@ onmessage=({data})=>{chain=chain.then(async()=>{
     binary=await(await fetch('/simulation.wasm')).arrayBuffer();
     const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',binary))].map(b=>b.toString(16).padStart(2,'0')).join('');
     if(digest!==data.match.identity.wasm)throw Error('WASM artifact does not match the negotiated build');
-    session=new NetworkSession(await Engine.create(binary,32768,data.match.seed,data.match.players),data.slot,data.match,{
+    session=new NetworkSession(await restoreRoom(binary,data.match.seed,data.match.players,data.match.snapshot,data.match.slots),data.slot,data.match,{
       gameplay:buffer=>postMessage({type:'gameplay',buffer},[buffer]),control:(message,recipient)=>send('control',{message,recipient}),diagnostic:bundle=>send('diagnostic',{bundle})
     });send('booted');
+  }else if(data.type==='snapshot'){
+    if(!session)throw Error('Worker not initialized');running=false;
+    const peer=session.peer,snapshot=peer.snapshots.get(Math.max(0,Math.min(peer.agreed,peer.tick-1)+1));
+    if(!snapshot)throw Error('Room snapshot unavailable');
+    send('snapshot',{transition:data.transition,snapshot:btoa(String.fromCharCode(...snapshot))});
   }else if(data.type==='replay'){
     if(data.finalize)running=false;
     try{if(!session||!binary)throw Error('No match recording available');send('replay',{recording:await session.replay(binary),finalize:!!data.finalize});}

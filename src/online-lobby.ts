@@ -2,7 +2,7 @@ import {PeerMatch} from './peer-match.ts';
 import type {MatchConfig} from './network-session.ts';
 import type {Identity} from './replay.ts';
 type Frame=Parameters<ConstructorParameters<typeof PeerMatch>[3]['frame']>[0];
-interface OnlineCallbacks {browse:()=>void;start:(slot:number)=>void;frame:(data:Frame,slot:number)=>void;leave:()=>void}
+interface OnlineCallbacks {browse:()=>void;start:(slot:number,continuing:boolean)=>void;frame:(data:Frame,slot:number)=>void;leave:()=>void}
 export class OnlineLobby {
   private ws:WebSocket|undefined;
   private readonly instance=Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>byte.toString(16).padStart(2,'0')).join('');
@@ -30,25 +30,26 @@ export class OnlineLobby {
   private status=document.querySelector<HTMLOutputElement>('#online-status')!;
   private region='';
   private available=false;
+  private buttons=0;
+  private wantsRoom=false;
   private searching=false;
   private pendingSearch=false;
-  private playerCount=document.querySelector<HTMLSelectElement>('#online-players')!;
   constructor(callbacks:OnlineCallbacks){
     this.callbacks=callbacks;
     document.querySelector('#online-open')!.addEventListener('click',()=>{this.panel.hidden=false;this.callbacks.browse();if(!this.ws||this.ws.readyState>1)void this.connect();});
     document.querySelector('#online-close')!.addEventListener('click',()=>{if(this.peer)this.panel.hidden=true;else this.leave();});
     document.querySelector('#queue-join')!.addEventListener('click',()=>{
-      this.pendingSearch=true;this.searching=true;this.updateActions();
-      if(this.available)this.findOpponent();else void this.connect();
+      this.wantsRoom=true;this.pendingSearch=true;this.searching=true;this.updateActions();
+      if(this.available)this.quickPlay();else void this.connect();
     });
-    document.querySelector('#queue-cancel')!.addEventListener('click',()=>{this.pendingSearch=false;this.searching=false;if(this.available)this.send({type:'cancelQueue'});this.updateActions();});
+    document.querySelector('#queue-cancel')!.addEventListener('click',()=>{this.wantsRoom=false;this.pendingSearch=false;this.searching=false;if(this.available)this.send({type:'leave'});this.updateActions();});
     document.querySelector('#online-ready')!.addEventListener('click',()=>this.rematch());
     document.querySelector('#online-leave')!.addEventListener('click',()=>this.leave());
     setInterval(()=>this.metrics(),2000);
     this.enabled(false);
   }
   get active(){return !!this.peer;}
-  input(buttons:number){this.peer?.input(buttons);}
+  input(buttons:number){this.buttons=buttons;this.peer?.input(buttons);}
   rematch(){this.ready=true;this.updateActions();this.send({type:'rematch'});this.panel.hidden=false;this.status.textContent='Waiting for all players to rematch…';}
   private enabled(value:boolean){this.available=value;this.updateActions();}
   private updateActions(){
@@ -56,17 +57,16 @@ export class OnlineLobby {
     find.hidden=this.searching||!!this.peer;
     find.disabled=false;
     this.panel.querySelector<HTMLButtonElement>('#queue-cancel')!.hidden=!this.searching;
-    this.playerCount.disabled=this.searching||!!this.peer;
     const rematch=this.panel.querySelector<HTMLButtonElement>('#online-ready')!;
     rematch.hidden=!this.room||!this.hasOpponent||!!this.peer||this.searching;
     rematch.disabled=!this.available||this.ready;
     document.querySelector<HTMLButtonElement>('#rematch')!.disabled=!!this.peer||this.ready||!this.available;
     rematch.textContent=this.ready?'Waiting for players…':'Rematch';
   }
-  private findOpponent(){
+  private quickPlay(){
     this.pendingSearch=false;
     if(this.room){this.send({type:'leave'});this.room='';}
-    this.send({type:'queue',players:Number(this.playerCount.value)});
+    this.send({type:'quickPlay'});
   }
   private async connect(){
     if(this.connecting||this.ws?.readyState===WebSocket.OPEN)return;
@@ -98,24 +98,27 @@ export class OnlineLobby {
     this.disconnectSince??=performance.now();
     clearTimeout(this.reconnectTimer);
     if(performance.now()-this.disconnectSince<10000){this.status.textContent='Lobby connection interrupted · reconnecting…';this.reconnectTimer=setTimeout(()=>void this.connect(),500);}
-    else{this.searching=false;this.pendingSearch=false;this.updateActions();this.error('Lobby disconnected. Select Find opponent to try again.');this.peer?.close('Lobby disconnected');this.disconnectSince=undefined;}
+    else{this.searching=false;this.pendingSearch=false;this.updateActions();this.error('Lobby disconnected. Select Quick play to try again.');this.peer?.close('Lobby disconnected');this.disconnectSince=undefined;}
   }
-  private send(message:Record<string,unknown>){if(this.ws?.readyState===WebSocket.OPEN)this.ws.send(JSON.stringify(message));else this.status.textContent='Online service unavailable. Select Find opponent to try again.';}
+  private send(message:Record<string,unknown>){if(this.ws?.readyState===WebSocket.OPEN)this.ws.send(JSON.stringify(message));else this.status.textContent='Online service unavailable. Select Quick play to try again.';}
   private async message(m:Record<string,any>){
     switch(m.type){
       case 'welcome':
         clearTimeout(this.connectTimer);this.disconnectSince=undefined;
-        if(m.resumed){this.enabled(true);if(m.region)this.region=m.region;this.status.textContent='Online session restored.';this.peer?.resumeSignaling();if(this.pendingSearch)this.findOpponent();}
+        if(m.resumed){this.enabled(true);if(m.region)this.region=m.region;this.status.textContent='Online session restored.';this.peer?.resumeSignaling();if(this.pendingSearch)this.quickPlay();}
         else this.send({type:'hello',identity:this.config!.identity,region:this.region});break;
-      case 'hello':this.enabled(true);this.status.textContent='Ready when you are.';if(this.pendingSearch)this.findOpponent();break;
+      case 'hello':this.enabled(true);this.status.textContent='Ready when you are.';if(this.pendingSearch)this.quickPlay();break;
       case 'error':this.pendingSearch=false;this.searching=false;this.updateActions();this.status.textContent=m.message;break;
       case 'room':
+        if(!this.wantsRoom){this.send({type:'leave'});break;}
         this.room=m.code;this.slot=m.slot;this.ready=m.ready[this.slot];this.hasOpponent=m.present.every(Boolean);
         this.searching=false;this.updateActions();
         if(!m.active)this.status.textContent=m.present.every(Boolean)?(this.ready?'Waiting for all players to rematch…':'Play again or find a new opponent.'):'A player left. Find a new match.';break;
       case 'queued':this.searching=true;this.updateActions();this.status.textContent='Searching for players…';break;
       case 'queueCancelled':this.searching=false;this.updateActions();this.status.textContent='Search cancelled.';break;
-      case 'match':await this.start(m.match,m.slot);break;
+      case 'transition':if(this.peer&&this.peer.match.id===m.matchId)this.peer.pause();this.status.textContent='Updating room…';break;
+      case 'snapshotRequest':if(this.peer&&this.peer.match.id===m.matchId)this.peer.snapshot(m.transition);break;
+      case 'match':if(this.wantsRoom)await this.start(m.match,m.slot);else this.send({type:'leave'});break;
       case 'signal':if(this.peer&&m.matchId===this.peer.match.id&&Number.isInteger(m.sender)&&m.sender>=0&&m.sender<this.peer.match.players&&m.sender!==this.slot)this.peer.signal(m.signal,m.sender);break;
       case 'peerDisconnected':this.status.textContent='A player is reconnecting…';break;
       case 'ended':
@@ -135,12 +138,13 @@ export class OnlineLobby {
     if(this.peer?.match.id===match.id)return;
     if(!match||!this.config||(['protocol','abi','wasm','map','config'] as const).some(key=>match.identity[key]!==this.config!.identity[key]))throw Error('Match build mismatch');
     const response=await fetch('/api/config');if(!response.ok)throw Error('Unable to refresh connection credentials');
-    const config=await response.json();this.config.iceServers=config.iceServers;
+    const config=await response.json();if(!this.wantsRoom)return;this.config.iceServers=config.iceServers;
     if(this.peer){this.endedNormally=true;this.peer.close('Replaced match',false);}
     clearTimeout(this.finishTimer);this.pendingFinish=undefined;
     this.slot=slot;this.reported=false;this.endedNormally=false;this.connectionReported=false;this.lastMetrics={stalls:0,rollbacks:0,desyncs:0};this.latest=undefined;
-    this.status.textContent='Connecting to players…';this.callbacks.start(slot);this.panel.hidden=true;
+    this.status.textContent='Joining room…';this.callbacks.start(slot,!!match.snapshot);this.panel.hidden=true;
     this.peer=new PeerMatch(match,slot,config.iceServers,{
+      snapshot:(snapshot,transition)=>this.send({type:'snapshot',matchId:match.id,transition,snapshot}),
       signal:value=>{const {recipient,signal}=value as {recipient:number;signal:unknown};this.send({type:'signal',matchId:match.id,recipient,signal});},
       refreshICE:async()=>{
         const response=await fetch('/api/config',{signal:AbortSignal.timeout(8000)});if(!response.ok)throw Error('Unable to renew relay credentials');
@@ -150,13 +154,14 @@ export class OnlineLobby {
       },
       status:status=>{this.status.textContent=status;document.querySelector('#connection-status')!.textContent=status;},
       frame:data=>{
-        this.latest=data;this.callbacks.frame(data,slot);
+        this.latest=data;this.callbacks.frame({...data,quick:match.quick},slot);
         const state=new Int32Array(data.buffer);
-        document.querySelector('#connection-status')!.textContent=data.stalled?'Connection stalled · waiting for confirmed inputs':`Online · ${Math.round(this.peer?.rtt??0)} ms · ${this.peer?.relay?'relay':'direct'}`;
-        if(state[1]>=0&&!this.reported){
+        document.querySelector('#connection-status')!.textContent=data.stalled?'Connection stalled · waiting for confirmed inputs':`Online · ${match.players}/4 players · ${Math.round(this.peer?.rtt??0)} ms · ${this.peer?.relay?'relay':'direct'}`;
+        const winner=match.quick?Array.from({length:match.players},(_,id)=>id).find(id=>state[27+id*16]>=5)??-1:state[1];
+        if(winner>=0&&!this.reported){
           this.reported=true;
           if(this.pendingFinish===match.id){clearTimeout(this.finishTimer);this.pendingFinish=undefined;this.endedNormally=true;this.peer?.close('Match finished',false);this.peer=undefined;}
-          else this.send({type:'finish',matchId:match.id,winner:state[1]});
+          else this.send({type:'finish',matchId:match.id,winner});
         }
       },
       diagnostic:()=>{},
@@ -167,7 +172,7 @@ export class OnlineLobby {
         document.querySelector('#connection-status')!.textContent=reason;this.status.textContent=reason;this.panel.hidden=false;
       }
     });
-    this.searching=false;this.updateActions();
+    this.peer.input(this.buttons);this.searching=false;this.updateActions();
   }
   private metrics(){
     if(!this.peer||!this.latest||this.ws?.readyState!==WebSocket.OPEN)return;
@@ -175,6 +180,6 @@ export class OnlineLobby {
     this.send({type:'metrics',matchId:this.peer.match.id,metrics:{connections:this.connectionReported?0:1,relayed:!this.connectionReported&&this.peer.relay?1:0,rttMs:Math.min(10000,Math.round(this.peer.rtt)),stalls:Math.max(0,latest.stalls-this.lastMetrics.stalls),rollbacks:Math.max(0,latest.rollbacks-this.lastMetrics.rollbacks),maxDepth:latest.maxDepth,desyncs:Math.max(0,latest.desyncs-this.lastMetrics.desyncs)}});
     this.connectionReported=true;this.lastMetrics={stalls:latest.stalls,rollbacks:latest.rollbacks,desyncs:latest.desyncs};
   }
-  leave(){this.pendingSearch=false;this.searching=false;clearTimeout(this.finishTimer);this.pendingFinish=undefined;this.endedNormally=true;this.peer?.close('Left match');this.peer=undefined;if(this.available)this.send({type:'leave'});this.room='';this.ready=false;this.updateActions();this.callbacks.leave();this.panel.hidden=true;}
+  leave(){this.wantsRoom=false;this.pendingSearch=false;this.searching=false;clearTimeout(this.finishTimer);this.pendingFinish=undefined;this.endedNormally=true;this.peer?.close('Left match');this.peer=undefined;if(this.available)this.send({type:'leave'});this.room='';this.ready=false;this.updateActions();this.callbacks.leave();this.panel.hidden=true;}
   private error(message:string){this.status.textContent=message;this.panel.hidden=false;}
 }

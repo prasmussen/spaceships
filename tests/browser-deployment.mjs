@@ -21,8 +21,13 @@ export async function checkDeployment(browser){
       const deadline=Date.now()+20000;
       while(true){try{await page.goto(values.PUBLIC_ORIGIN);if(await page.locator('#status').count())break;}catch{}if(Date.now()>deadline)throw Error('HTTPS deployment did not become ready');await new Promise(resolve=>setTimeout(resolve,200));}
       assert.equal(await page.evaluate(()=>window.isSecureContext),true);
+      // Retain the deployment's queue/cancel protocol coverage independently of Quick play.
+      await page.evaluate(()=>{
+        const send=WebSocket.prototype.send;
+        WebSocket.prototype.send=function(raw){const m=JSON.parse(raw);return send.call(this,m.type==='quickPlay'?JSON.stringify({type:'queue',players:2}):m.type==='leave'&&!document.querySelector('#queue-cancel').hidden?JSON.stringify({type:'cancelQueue'}):raw);};
+      });
       await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('FUEL'));
-      await page.getByRole('button',{name:'Find opponent',exact:true}).click();
+      await page.getByRole('button',{name:'Quick play',exact:true}).click();
       await page.waitForFunction(()=>document.querySelector('#online-status').textContent.includes('Searching'));
       await page.getByRole('button',{name:'Cancel search',exact:true}).click();
       await page.waitForFunction(()=>document.querySelector('#online-status').textContent.includes('Search cancelled'));
@@ -33,7 +38,7 @@ export async function checkDeployment(browser){
     assert.match(response.headers()['cache-control'],/no-cache/);
     const manifest=await response.json(),local=JSON.parse(await readFile('public/build.json','utf8'));assert.equal(manifest.wasm,local.wasm);
     const denied=await contexts[0].request.post(values.PUBLIC_ORIGIN+'/api/session',{headers:{Origin:'https://untrusted.example'}});assert.equal(denied.status(),403);
-    await Promise.all(pages.map(page=>page.getByRole('button',{name:'Find opponent',exact:true}).click()));
+    await Promise.all(pages.map(page=>page.getByRole('button',{name:'Quick play',exact:true}).click()));
     await Promise.all(pages.map(page=>page.waitForFunction(()=>document.querySelector('#connection-status').textContent.includes('Online ·'),{},{timeout:20000})));
     await pages[0].keyboard.down('w');await pages[0].waitForTimeout(300);await pages[0].keyboard.up('w');assert.match(await pages[0].locator('#status').textContent(),/IN FLIGHT/);
     await pages[0].getByRole('button',{name:'Online duel',exact:true}).click();await pages[0].getByRole('button',{name:'Practice offline',exact:true}).click();

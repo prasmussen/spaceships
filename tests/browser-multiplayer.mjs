@@ -21,8 +21,12 @@ export async function checkOnlineGroups(browser,base,forceRelay=false){
           const PC=window.RTCPeerConnection;window.RTCPeerConnection=class extends PC{constructor(config){super(forceRelay?{...config,iceTransportPolicy:'relay'}:config);window.onlinePCs.push(this);}};
         },forceRelay);
         const page=await context.newPage();pages.push(page);page.on('pageerror',e=>errors.push(String(e)));
-        await page.goto(base);await page.getByLabel('Online players',{exact:true}).selectOption(String(players));
-        await page.getByRole('button',{name:'Find opponent',exact:true}).click();
+        await page.goto(base);await page.evaluate(players=>{
+          // These replay/fixture checks exercise the retained fixed-roster protocol.
+          const send=WebSocket.prototype.send;
+          WebSocket.prototype.send=function(raw){const m=JSON.parse(raw);return send.call(this,m.type==='quickPlay'?JSON.stringify({type:'queue',players}):raw);};
+        },players);
+        await page.getByRole('button',{name:'Quick play',exact:true}).click();
         if(id<players-1)await page.waitForFunction(()=>document.querySelector('#online-status').textContent.includes('Searching'));
       }
       await Promise.all(pages.map(page=>page.waitForFunction(()=>window.onlineFrame?.agreed>=180||window.onlineError,{},{timeout:25000})));

@@ -31,10 +31,12 @@ For deployment, use one process behind an HTTPS/WSS reverse proxy, set exact HTT
 - `GET /ws` requires the session cookie and trusted Origin. Each connection has a 32 KiB message limit, bounded outgoing queue, write deadlines, ping/pong liveness, and message rate limits.
 - `GET /healthz` reports basic process availability. Authenticated `GET /api/metrics` returns aggregate, client-reported connection/relay/RTT/stall/rollback/desync counters; these are operational observations, not trusted competitive outcomes.
 
-The server sends `welcome` with the current identity. A new guest sends `hello` with exact identity and selected region. Only compatible clients can create/join rooms or queue. The supported messages are:
+The server sends `welcome` with the current identity. A new guest sends `hello` with exact identity and selected region. Only compatible clients can enter rooms. The UI uses Quick play; invite rooms and fixed-size queues remain available through the protocol. The supported messages are:
 
 | Client message | Effect |
 | --- | --- |
+| `quickPlay` | Join a room in the same region with fewer than four pilots, or start flying in a new solo room |
+| `snapshot {matchId, transition, snapshot}` | The designated surviving peer supplies a base64 confirmed snapshot for a roster change |
 | `create {players}` | Create a 2–4-player invite room, receive `room` with code and slot |
 | `join {code}` | Join an available room in the selected region |
 | `queue {players}` / `cancelQueue` | Group compatible clients with the same 2–4-player count and region, or cancel |
@@ -44,6 +46,8 @@ The server sends `welcome` with the current identity. A new guest sends `hello` 
 | `rematch` | Ready for a fresh match ID/epoch/seed; all clients must opt in |
 | `leave` | Leave room/queue; all active opponents receive disconnected termination |
 | `metrics {matchId, metrics}` | Submit bounded operational counters for an active match |
+
+Quick rooms restart automatically with everyone at zero when a confirmed score reaches five. Joining or leaving briefly pauses the peer mesh while a surviving pilot supplies a confirmed snapshot; the new match carries the snapshot and old-to-new slot mapping, preserving ships and scores. Departed pilots’ projectiles are removed, and new pilots spawn with zero points. If the snapshot handoff times out after ten seconds, the room starts a fresh round. Quick rooms stay open until the final pilot leaves.
 
 A `match` message fixes player count and slots, random match ID/epoch/seed, exact content identity, input delay 2, region and designated recovery peer 0. WebSocket reconnect with the same cookie preserves room and slot for ten seconds; the server resends room and match configuration. The client must resume/renegotiate its peer transport. The browser retries temporary HTTP failures during reconnect and bounds HTTP/WebSocket setup by the remaining grace window. After that grace window, cleanup frees the room membership and informs all opponents. Sessions, rates and idle clients are also cleaned periodically.
 

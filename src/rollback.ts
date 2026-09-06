@@ -17,8 +17,9 @@ export class Rollback {
   readonly hashes=new Map<number,string>();
   readonly player:number;
   readonly engine:Engine;
+  private readonly originTick:number;
   private events:((frame:Int32Array)=>void)|undefined;
-  constructor(engine:Engine,player:number,events?: (frame:Int32Array)=>void){this.events=events;if(!Number.isInteger(player)||player<0||player>=engine.players)throw Error('Invalid player');this.input=Array.from({length:engine.players},()=>new Map([[0,0],[1,0]]));this.acknowledgements=Array(engine.players).fill(1);this.engine=engine;this.player=player;this.snapshots.set(0,engine.save());}
+  constructor(engine:Engine,player:number,events?: (frame:Int32Array)=>void){this.events=events;if(!Number.isInteger(player)||player<0||player>=engine.players)throw Error('Invalid player');this.input=Array.from({length:engine.players},()=>new Map([[0,0],[1,0]]));this.acknowledgements=Array(engine.players).fill(1);this.engine=engine;this.originTick=engine.frame()[0];this.player=player;this.snapshots.set(0,engine.save());}
   get agreed(){return Math.min(this.complete,this.peerAck);}
   receive(player:number,tick:number,buttons:number){
     if(!Number.isInteger(player)||player<0||player>=this.engine.players||player===this.player || !Number.isInteger(tick) || tick<0 || tick>this.tick+120 || !Number.isInteger(buttons)||buttons<0||buttons>31)throw new ProtocolError('Invalid input ownership, tick window or buttons');
@@ -61,7 +62,7 @@ export class Rollback {
     if(!Number.isInteger(tick)||tick<0||tick>this.agreed||tick>=this.tick)throw new ProtocolError('Recovery requires an agreed simulated tick');
     if(snapshot.length!==STATE_BYTES)throw new ProtocolError('Invalid recovery size');
     const view=new DataView(snapshot.buffer,snapshot.byteOffset,snapshot.byteLength);
-    if(view.getInt32(4,true)<0?view.getUint32(0,true)!==tick+1:view.getUint32(0,true)>tick+1)throw new ProtocolError('Recovery snapshot tick mismatch');
+    if(view.getInt32(4,true)<0?view.getUint32(0,true)!==this.originTick+tick+1:view.getUint32(0,true)>this.originTick+tick+1)throw new ProtocolError('Recovery snapshot tick mismatch');
     const present=this.tick;this.engine.load(snapshot);this.tick=tick+1;
     this.hashes.set(tick,this.engine.hash());this.snapshots.set(this.tick,this.engine.save());
     while(this.tick<present)this.execute();

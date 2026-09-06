@@ -28,8 +28,12 @@ export async function checkFullMatch(browser,base,relay){
           if(relay){const PC=window.RTCPeerConnection;window.RTCPeerConnection=class extends PC{constructor(config){super({...config,iceTransportPolicy:'relay'});}};}
         },{fixtures,relay});
         const page=await context.newPage();pages.push(page);await page.goto(base);
-        await page.getByLabel('Online players',{exact:true}).selectOption(String(players));
-        await page.getByRole('button',{name:'Find opponent',exact:true}).click();
+        await page.evaluate(players=>{
+          // These replay/fixture checks exercise the retained fixed-roster protocol.
+          const send=WebSocket.prototype.send;
+          WebSocket.prototype.send=function(raw){const m=JSON.parse(raw);return send.call(this,m.type==='quickPlay'?JSON.stringify({type:'queue',players}):raw);};
+        },players);
+        await page.getByRole('button',{name:'Quick play',exact:true}).click();
         if(p<players-1)await page.waitForFunction(()=>document.querySelector('#online-status').textContent.includes('Searching'));
       }
       await Promise.all(pages.map(page=>page.waitForFunction(()=>document.querySelector('#connection-status').textContent.includes('Online ·'),{},{timeout:20000})));
