@@ -5,6 +5,8 @@
   (data (i32.const 0) "CDUL\01\00\00\00\00\10\00\00\c0\20\00\00\00\08\00\00\00\00\01\00\00\40\01\00\02\00\00\00")
   ;; MAP_DATA
   ;; EVENTS
+  ;; DEBRIS
+  ;; DEBRIS_DATA
   ;; COMBAT
   ;; COLLISION
   ;; LANDING
@@ -81,6 +83,9 @@
       (br_if $done (i32.ne (i32.load (i32.const 4100)) (i32.const -1)))
       (i32.store (i32.const 131072) (i32.const 0))
       (memory.fill (i32.const 40000) (i32.const 0) (i32.const 16))
+      (memory.copy (i32.const 40100) (i32.const 4168) (i32.const 8))
+      (memory.copy (i32.const 40108) (i32.const 4232) (i32.const 8))
+      (i32.store (i32.const 40116) (i32.const 0))
       (call $pre_tick (i32.const 4160)) (call $pre_tick (i32.const 4224))
       (call $fire (i32.const 4160) (i32.load8_u (local.get $input)))
       (call $fire (i32.const 4224) (i32.load8_u offset=1 (local.get $input)))
@@ -90,6 +95,7 @@
       (if (i32.eqz (i32.load (i32.const 4192))) (then (i32.store (i32.const 4208) (i32.const 0))))
       (if (i32.eqz (i32.load (i32.const 4256))) (then (i32.store (i32.const 4272) (i32.const 0))))
       (call $ship_contact)
+      (call $debris_step)
       (call $projectiles)
       (call $capture_positions)
       (call $flight (i32.const 4160) (i32.load8_u (local.get $input)))
@@ -97,6 +103,7 @@
       (if (i32.eqz (i32.load (i32.const 4192))) (then (i32.store (i32.const 4208) (i32.const 0))))
       (if (i32.eqz (i32.load (i32.const 4256))) (then (i32.store (i32.const 4272) (i32.const 0))))
       (call $ship_contact)
+      (call $debris_step)
       (call $projectiles)
       (call $finish_combat)
       (i32.store (i32.const 4096) (i32.add (i32.load (i32.const 4096)) (i32.const 1)))
@@ -158,8 +165,11 @@
     (loop $validate_pool
       (if (i32.load offset=16 (local.get $p))
         (then
-          (if (i32.or (i32.gt_u (i32.load offset=16 (local.get $p)) (i32.const @projectileLifetime@))
-            (i32.or (i32.gt_u (i32.load offset=20 (local.get $p)) (i32.const 1)) (i32.load offset=28 (local.get $p)))) (then (return (i32.const 0))))
+          (if (i32.or (i32.gt_u (i32.load offset=16 (local.get $p)) (if (result i32) (i32.load offset=28 (local.get $p)) (then (i32.const 186)) (else (i32.const @projectileLifetime@))))
+            (i32.gt_u (i32.load offset=20 (local.get $p)) (i32.const 1))) (then (return (i32.const 0))))
+          (if (i32.load offset=28 (local.get $p)) (then
+            (if (i32.or (i32.ne (i32.and (i32.load offset=28 (local.get $p)) (i32.const -262144)) (i32.const 268435456))
+              (i32.ge_u (i32.and (i32.load offset=28 (local.get $p)) (i32.const 31)) (i32.const 16))) (then (return (i32.const 0))))))
           (if (i32.or (i32.eqz (i32.load offset=24 (local.get $p))) (i32.gt_u (i32.load offset=24 (local.get $p)) (i32.load offset=12 (local.get $src)))) (then (return (i32.const 0))))
           (local.set $other (i32.add (local.get $src) (i32.const 192)))
           (block $ids_done (loop $unique_ids

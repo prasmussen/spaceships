@@ -1,8 +1,41 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {FlightInterpolation,PositionCorrection} from '../src/presentation.ts';
+import {FlightInterpolation,FragmentInterpolation,PositionCorrection} from '../src/presentation.ts';
 function frame(x,y=100){const state=new Int32Array(2096);state[16]=x*65536;state[17]=y*65536;state[18]=65536;state[23]=3;return state;}
 function moving(tick){const state=frame(100+tick);state[0]=tick;return state;}
+function debris(tick,x=tick,id=1,angle=tick*20){
+  const state=moving(tick);state.set([x*65536,100*65536,65536,0,186-tick,0,id,0x10000000|(angle<<5)],48);return state;
+}
+test('fragment translation and rotation stay even at 144 Hz with jittered worker delivery',()=>{
+  const motion=new FragmentInterpolation();let tick=0,state=debris(0),previous;
+  for(let render=0;render<200;render++){
+    const now=render*1000/144;
+    while((tick+1)*1000/60+((tick+1)%3)*3<=now)state=debris(++tick);
+    const copy=state.slice(),pose=motion.sample(state,now).get(1);
+    if(render>12){
+      assert.ok(Math.abs(pose.x-previous.x-60/144)<1e-9);
+      assert.ok(Math.abs(pose.angle-previous.angle-20*Math.PI/2048*60/144)<1e-9);
+    }
+    previous=pose;assert.deepEqual(state,copy);
+  }
+});
+test('fragment rotation wraps, bounces stay within known positions and paused updates hold still',()=>{
+  const motion=new FragmentInterpolation();motion.sample(debris(0,0,1,4090),0);
+  const state=debris(1,1,1,6);motion.sample(state,1000/60);
+  const halfway=motion.sample(state,2500/60).get(1);
+  assert.equal(halfway.x,.5);assert.ok(Math.abs(halfway.angle-2*Math.PI)<1e-9);
+  assert.equal(motion.sample(state,100).get(1).x,1);
+  assert.equal(motion.sample(state,150).get(1).x,1);
+  const bounce=debris(2,0);assert.ok(motion.sample(bounce,160).get(1).x<=1);
+});
+test('fragment slot reuse, expiry, seeks and rollback corrections discard stale motion',()=>{
+  const motion=new FragmentInterpolation();motion.sample(debris(10),0);
+  const reused=motion.sample(debris(11,100,2),10);assert.equal(reused.has(1),false);assert.equal(reused.get(2).x,100);
+  const empty=debris(12);empty[52]=0;assert.equal(motion.sample(empty,20).size,0);
+  assert.equal(motion.sample(debris(0,50),30).get(1).x,50);
+  assert.equal(motion.sample(debris(1,60),40,false,1).get(1).x,60);
+  assert.equal(motion.sample(debris(2,70),50,true,1).get(1).x,70);
+});
 test('flight advances evenly at 144 Hz despite jittered 60 Hz worker updates',()=>{
   const flight=new FlightInterpolation();let tick=0,state=moving(0),previous;
   for(let render=0;render<288;render++){

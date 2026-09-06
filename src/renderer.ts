@@ -80,9 +80,9 @@ async function createRenderer(canvas:HTMLCanvasElement,effects:Effects,get:Frame
       shipData.set([x,y,motion.angle,state[o+7]>0?1:0,(buttons[p]&1)&&state[o+6]>0?1:0,state[o+12]>0?1:0,0,0],p*8);
     }
     if(snap&&state[0]>0)didSnap();
-    for(let i=0;i<256;i++){const o=48+i*8;bulletData.set([state[o]/65536,state[o+1]/65536,state[o+5],state[o+4]>0?1:0],i*4);}
+    for(let i=0;i<256;i++){const o=48+i*8;bulletData.set([state[o]/65536,state[o+1]/65536,state[o+5],state[o+4]>0&&!state[o+7]?1:0],i*4);}
     const particleCount=effects.write(bulletData,1024,now);
-    const fragmentCount=effects.writeFragments(fragmentData,now);
+    const fragmentCount=effects.writeFragments(fragmentData,now,state,snap,correction);
     if(fragmentCount)device.queue.writeBuffer(fragments,0,fragmentData,0,fragmentCount*FRAGMENT_STRIDE);
     device.queue.writeBuffer(ships,0,shipData);device.queue.writeBuffer(bullets,0,bulletData);
     const encoder=device.createCommandEncoder();

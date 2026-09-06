@@ -1,4 +1,41 @@
 type Pose={tick:number;x:number;y:number;angle:number;vx:number;vy:number};
+type FragmentPose={x:number;y:number;angle:number;life:number};
+
+/** Presentation-only history keyed by entity ID, so reused pool slots never blend. */
+export class FragmentInterpolation {
+  private frames:{tick:number;poses:Map<number,FragmentPose>}[]=[];
+  private clock=0;
+  private previousTime=0;
+  private revision=0;
+  sample(state:Int32Array,now:number,reset=false,revision=0){
+    const tick=state[0],poses=new Map<number,FragmentPose>();
+    for(let i=0;i<256;i++){
+      const o=48+i*8;
+      if(state[o+7]&&state[o+4]>0)poses.set(state[o+6],{x:state[o]/65536,y:state[o+1]/65536,angle:(state[o+7]>>>5)&4095,life:state[o+4]});
+    }
+    const last=this.frames.at(-1),frame={tick,poses};
+    if(reset||!last||revision!==this.revision||tick<last.tick||tick-last.tick>12||now-this.previousTime>200){
+      this.frames=[frame];this.clock=tick-2;
+    }else{
+      this.clock=Math.min(tick,this.clock+Math.max(0,now-this.previousTime)*60/1000);
+      if(tick-this.clock>4)this.clock=tick-2;
+      if(tick>last.tick)this.frames.push(frame);else this.frames[this.frames.length-1]=frame;
+    }
+    this.previousTime=now;this.revision=revision;
+    while(this.frames.length>2&&this.frames[1].tick<=this.clock)this.frames.shift();
+    const a=this.frames[0],b=this.frames[1]??a;
+    const alpha=a.tick===b.tick?1:Math.max(0,Math.min(1,(this.clock-a.tick)/(b.tick-a.tick)));
+    const result=new Map<number,FragmentPose>();
+    for(const [id,current]of poses){
+      const from=a.poses.get(id),to=b.poses.get(id);
+      if(!from||!to){result.set(id,{...current,angle:current.angle*Math.PI/2048});continue;}
+      const turn=((to.angle-from.angle+6144)%4096)-2048;
+      result.set(id,{x:from.x+(to.x-from.x)*alpha,y:from.y+(to.y-from.y)*alpha,
+        angle:(from.angle+turn*alpha)*Math.PI/2048,life:from.life+(to.life-from.life)*alpha});
+    }
+    return result;
+  }
+}
 
 /** Render on a continuous clock two ticks behind the worker, absorbing delivery jitter. */
 export class FlightInterpolation {

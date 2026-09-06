@@ -1,6 +1,7 @@
 process.on('uncaughtException',error=>{console.error(error.message);process.exit(1);});
 import { createHash } from 'node:crypto';
 import wabtFactory from 'wabt';
+import {HULL_FRAGMENTS} from '../src/hull-fragments.ts';
 import {readFile, writeFile, mkdir} from 'node:fs/promises';
 const wabt = await wabtFactory();
 const table = await readFile(new URL('../sim/sine.json', import.meta.url), 'utf8');
@@ -38,6 +39,13 @@ for(const [i,rect]of cave.solids.entries()) {
 }
 const mapData=[...mapBytes].map(v=>'\\'+v.toString(16).padStart(2,'0')).join('');
 let source = (await readFile('sim/core.wat','utf8')).replace(';; TRIG_TABLE',`(data (i32.const 16384) "${data}")`);
+const debrisBytes=Buffer.alloc(16*24);
+HULL_FRAGMENTS.forEach((shape,i)=>{
+  const direction=Math.atan2(shape.y,shape.x),speed=(shape.strip?65:40)+(i*17%50);
+  [shape.x*65536,shape.y*65536,shape.size*1.1*65536,Math.cos(direction)*speed/60*65536,Math.sin(direction)*speed/60*65536,(i%2?1:-1)*(12+i%17)].forEach((v,k)=>debrisBytes.writeInt32LE(Math.round(v),i*24+k*4));
+});
+source=source.replace(';; DEBRIS',await readFile('sim/debris.wat','utf8'));
+source=source.replace(';; DEBRIS_DATA',`(data (i32.const 36000) "${[...debrisBytes].map(v=>'\\'+v.toString(16).padStart(2,'0')).join('')}")`);
 source = source.replace(';; EVENTS',await readFile('sim/events.wat','utf8'));
 source = source.replace(';; COMBAT',await readFile('sim/combat.wat','utf8'));
 source = source.replace(';; COLLISION',await readFile('sim/collision.wat','utf8')).replace(';; LANDING',await readFile('sim/landing.wat','utf8'));

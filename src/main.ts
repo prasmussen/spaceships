@@ -3,7 +3,6 @@ import {render} from './renderer';
 import {OnlineLobby} from './online-lobby';
 import {Controls} from './controls';
 import {Effects} from './effects';
-import cave from '../sim/cave.json';
 const canvas=document.querySelector<HTMLCanvasElement>('#view')!;
 const status=document.querySelector<HTMLElement>('#status')!;
 const result=document.querySelector<HTMLElement>('#result')!;
@@ -19,7 +18,7 @@ const guide=document.querySelector<HTMLDialogElement>('#guide-panel')!;
 document.querySelector('#guide-open')!.addEventListener('click',()=>{held.clear();input();guide.showModal();});
 guide.onclose=()=>{held.clear();input();};
 const controls=new Controls(()=>{held.clear();input();});
-const effects=new Effects(()=>({sound:controls.sound&&!document.hidden,particles:!controls.reducedMotion}),cave.solids);
+const effects=new Effects(()=>({sound:controls.sound&&!document.hidden,particles:!controls.reducedMotion}));
 for(const name of ['pointerdown','keydown','change'])window.addEventListener(name,()=>effects.unlock());
 function input(){let pressed=0;for(const key of held)pressed|=controls.lookup(key);buttons=[pressed,0];worker.postMessage({type:'input',buttons:pressed});if(mode===3)online?.input(pressed);}
 function reset(){effects.clear();if(mode===3){online?.rematch();return;}held.clear();input();snapCamera=true;worker.postMessage({type:'reset'});}

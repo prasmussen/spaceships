@@ -59,7 +59,7 @@
     (local $terrain i32) (local $hit i32) (local $target i32) (local $old i32) (local $player i32)
     (local.set $slot (i32.const 4288))
     (loop $pool
-      (if (i32.load offset=16 (local.get $slot)) (then
+      (if (i32.and (i32.ne (i32.load offset=16 (local.get $slot)) (i32.const 0)) (i32.eqz (i32.load offset=28 (local.get $slot)))) (then
         (local.set $x (i32.load (local.get $slot))) (local.set $y (i32.load offset=4 (local.get $slot)))
         (local.set $dx (i32.div_s (i32.load offset=8 (local.get $slot)) (i32.const 2)))
         (local.set $dy (i32.div_s (i32.load offset=12 (local.get $slot)) (i32.const 2)))
@@ -99,12 +99,14 @@
     (i32.store offset=28 (local.get $p) (call $max (i32.const 0) (i32.sub (i32.load offset=28 (local.get $p)) (local.get $amount))))
     (if (i32.eqz (i32.load offset=28 (local.get $p))) (then
       (call $ship_event (i32.const 4) (local.get $p) (i32.const 0))
+      (call $spawn_debris (local.get $p))
       (i32.store offset=8 (local.get $p) (i32.const 0)) (i32.store offset=12 (local.get $p) (i32.const 0))
       (i32.store offset=20 (local.get $p) (i32.const 0)) (i32.store offset=32 (local.get $p) (i32.const 0))
       (i32.store offset=40 (local.get $p) (i32.const 120)) (i32.store offset=48 (local.get $p) (i32.const 0))
       (i32.store offset=44 (local.get $opponent) (i32.add (i32.load offset=44 (local.get $opponent)) (i32.const 1))))))
   (func $crash (param $p i32)
     (call $ship_event (i32.const 5) (local.get $p) (i32.const 0))
+    (call $spawn_debris (local.get $p))
     (i32.store offset=48 (local.get $p) (i32.const 0))
     (i32.store offset=28 (local.get $p) (i32.const 0))
     (i32.store offset=32 (local.get $p) (i32.const 0))
