@@ -22,7 +22,7 @@ One fixed 256 KiB memory; no imports and no growth.
 
 `init(1024, map, seed)` accepts map 0 for unbounded arithmetic tests, 32768 for the cave, or 32769 for the Flight lab arena. It validates frozen config/map bytes before changing state. Seed is reserved: gameplay has no randomness. Both ships start full; cave and arena ships start grounded at their own pads.
 
-`step(2048, count)` consumes 0–120 records. Input bits: thrust 1, left 2, right 4; fire 8. Inputs stay constant over both substeps. A step returns 1 on success, 0 on invalid ABI arguments or tick overflow. All simulation exports have fixed destinations; hosts cannot make them overwrite immutable data through arbitrary pointers.
+`step(2048, count)` consumes 0–120 records. Input bits: thrust 1, left 2, right 4; fire 8; boost 16. Inputs stay constant over both substeps. A step returns 1 on success, 0 on invalid ABI arguments or tick overflow. All simulation exports have fixed destinations; hosts cannot make them overwrite immutable data through arbitrary pointers.
 
 `save_state(65536)` and `write_frame(81920)` return the number of bytes written, or 0 for invalid destinations. `load_state(65536, 8384)` validates first, then restores atomically. It checks tick bounds, mode identity, header/reserved bytes, position/velocity/angle/fuel/hull bounds, grounded/respawn consistency, and own-pad position for grounded ships. State hashes use 64-bit FNV-1a over every state byte. Hashes are diagnostics, not cryptographic authentication.
 
@@ -41,7 +41,9 @@ All fields are little-endian i32. Header: tick at 0, winner at 4 (-1/0/1), cave 
 | 40 | respawn ticks remaining |
 | 44 | score; crashes deduct one |
 | 48 | spawn protection ticks |
-| 52–63 | reserved, zero |
+| 52 | boost ticks remaining |
+| 56 | boost cooldown ticks remaining |
+| 60 | previous boost button (0 or 1) |
 
 Projectile slots follow the ships at state offset 192: 256 slots × 32 bytes. Fields are x, y, vx, vy, lifetime, owner, unique sequence ID, and metadata (zero for shots). Debris uses marker bit 28, shape bits 0–4, orientation bits 5–16, and a first-contact flag in bit 17. Inactive slots are entirely zero. Allocation selects the lowest free slot; sequence IDs never wrap. Snapshots validate IDs, uniqueness, lifetime, ownership, velocity and remaining-travel overflow bounds.
 
@@ -70,3 +72,5 @@ Ship explosions allocate up to 16 debris pieces in the same bounded pool. Debris
 `npm test` covers flight arithmetic and snapshots; landing tests exercise thresholds below/at/above limits, own/opponent pads, respawn timing, launch/refuel and high-speed pillar impact. Diagnostic-only builds export collision helpers so tests can compare 20,000 swept circles with an independent analytic oracle and 4,000 uniform-grid queries with full solid scans. Those helper exports are absent from the production artifact.
 
 The browser script checks actual WebGPU shader validation, keyboard flight, restart, mode switching and launching from the pad. Its replay matrix runs independently of WebGPU support, comparing engine hashes to Node with different presentation-read cadences. These automated checks do not establish subjective flight feel or internet multiplayer acceptance.
+
+Boost is triggered by a fresh press of bit 16 (Left Shift by default). It starts a self-contained 18-tick burst at four times normal acceleration and exhaust force, costs 120 fuel upfront plus normal thrust fuel, and recharges 300 ticks (5 seconds) from activation. More than 120 fuel is required to start; an empty tank stops thrust. Holding the key does not repeat the boost. It launches from pads and retains normal collision, speed, exhaust cone, terrain occlusion and pad impulse limits. Timers and the input latch are validated snapshot state; respawn resets them.

@@ -6,7 +6,7 @@ import {recordReplay,ReplayPlayer,checkReplay} from '../src/replay.ts';
 import {laboratory} from '../src/laboratory.ts';
 const wasm=await readFile('public/simulation.wasm'),identity=JSON.parse(await readFile('public/build.json','utf8'));
 test('replay checkpoints, validation and arbitrary seeks use the same WASM',async()=>{
-  const inputs=Array.from({length:300},(_,t)=>[(t*7+(t>>3))&15,(t*3+(t>>4))&15]);
+  const inputs=Array.from({length:300},(_,t)=>[(t*7+(t>>3))&31,(t*3+(t>>4))&31]);
   const replay=await recordReplay(wasm,identity,inputs);checkReplay(replay,identity);
   const player=new ReplayPlayer(await Engine.create(wasm),replay);
   assert.equal(await player.validate(),replay.checkpoints.at(-1).hash);
@@ -15,7 +15,7 @@ test('replay checkpoints, validation and arbitrary seeks use the same WASM',asyn
 test('replay rejects incompatible builds, malformed inputs and forged checkpoints',async()=>{
   const replay=await recordReplay(wasm,identity,Array.from({length:60},()=>[1,0]));
   assert.throws(()=>checkReplay({...replay,identity:{...identity,wasm:'wrong'}},identity));
-  assert.throws(()=>checkReplay({...replay,inputs:[[16,0]]},identity));
+  assert.throws(()=>checkReplay({...replay,inputs:[[32,0]]},identity));
   replay.checkpoints[0].hash='1';const player=new ReplayPlayer(await Engine.create(wasm),replay);await assert.rejects(()=>player.validate(),/diverges/);assert.throws(()=>player.seek(60),/Corrupt/);
 });
 test('interactive laboratory survives the worst selectable conditions',async()=>{

@@ -99,7 +99,7 @@ func Validate(ctx context.Context, wasm []byte, identity Identity, r Recording) 
 		return result, err
 	}
 	for _, pair := range r.Inputs {
-		if len(pair) != 2 || pair[0] < 0 || pair[0] > 15 || pair[1] < 0 || pair[1] > 15 {
+		if len(pair) != 2 || pair[0] < 0 || pair[0] > 31 || pair[1] < 0 || pair[1] > 31 {
 			return result, fmt.Errorf("invalid paired input")
 		}
 	}

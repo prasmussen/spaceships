@@ -6,6 +6,7 @@
     (i32.store offset=8 (local.get $p) (i32.const 0)) (i32.store offset=12 (local.get $p) (i32.const 0))
     (i32.store offset=16 (local.get $p) (i32.const 0)) (i32.store offset=20 (local.get $p) (i32.const 0))
     (i32.store offset=24 (local.get $p) (i32.const @fuelCapacity@)) (i32.store offset=28 (local.get $p) (i32.const 3))
+    (memory.fill (i32.add (local.get $p) (i32.const 52)) (i32.const 0) (i32.const 12))
     (i32.store offset=36 (local.get $p) (i32.const 0))
     (i32.store offset=48 (local.get $p) (i32.const @spawnProtection@))
     (i32.store offset=32 (local.get $p) (i32.const 1)) (i32.store offset=40 (local.get $p) (i32.const 0))

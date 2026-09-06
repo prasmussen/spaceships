@@ -12,15 +12,15 @@ fn line(p:vec2f, a:vec2f, b:vec2f)->f32 {
 }
 fn tint(player:u32)->vec3f { return select(vec3f(.18,.85,.72),vec3f(1.,.48,.25),player==1u); }
 fn exhaust(p:vec2f,power:f32,player:u32)->vec3f {
-  if(power<.01 || p.y<10. || p.y>34. || abs(p.x)>9.){return vec3f(0.);}
+  if(power<.01 || p.y<10. || p.y>52. || abs(p.x)>9.){return vec3f(0.);}
   let t=view.time+f32(player)*2.7;
   let pulse=(sin(t*27.)*.55+sin(t*43.+1.3)*.3+sin(t*71.)*.15)*view.motion;
-  let length=12.+power*9.+pulse*.8;
+  let length=12.+power*9.+max(0.,power-1.)*16.+pulse*.8;
   let y=p.y-10.;let progress=clamp(y/length,0.,1.);
   // Keep the original short triangular silhouette, with a gently moving edge.
   let bend=(sin(y*.38-t*24.)+sin(y*.73-t*37.)*.4)*progress*.3*view.motion;
   let x=abs(p.x-bend);
-  let width=4.6*(1.-progress)*(1.+sin(y*.7-t*31.)*.04*view.motion);
+  let width=(4.6+max(0.,power-1.)*2.)*(1.-progress)*(1.+sin(y*.7-t*31.)*.04*view.motion);
   let tip=1.-smoothstep(length-2.,length,y);
   let ignition=smoothstep(0.,.6,y)*power;
   let plume=(1.-smoothstep(max(0.,width-.65),width+.35,x))*tip;

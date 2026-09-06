@@ -40,3 +40,5 @@ For online play, open the Go-served app in two browser windows and select Find o
 Developer replay validation remains available with `go run ./cmd/replaycheck path/to/replay.json`. See [replay validation](docs/replays.md).
 
 See [complete-match verification](docs/match-acceptance.md) and [HTTPS/WSS deployment](docs/deployment.md) for the container build and Caddy setup. Public deployment and release acceptance remain in progress. [PROGRESS.md](PROGRESS.md) tracks the full original scope and verification limits.
+
+Press **Left Shift** for a 0.3-second boost at four times normal thrust. Boost exhaust also pushes ships behind you harder. Each burst costs extra fuel and recharges in five seconds; release and press again to boost. The HUD shows readiness, and Controls lets you rebind Boost.

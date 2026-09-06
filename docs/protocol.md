@@ -14,7 +14,7 @@ Gameplay uses an unordered DataChannel with `maxRetransmits: 0`. Each binary mes
 | 12 | i32 LE | inclusive input-complete acknowledgement |
 | 16 | u8 | frame count, 1–8 |
 | 17–19 | bytes | zero reserved bytes |
-| 20 onward | u8 each | consecutive button masks, 0–15 |
+| 20 onward | u8 each | consecutive button masks, 0–31 |
 
 Receivers validate epoch, sender ownership, size, reserved bytes, masks and tick window before passing records to the rollback engine. The rollback engine rejects conflicting submissions while allowing identical duplicates. Latest-eight packets can overlap. Reliable repair supplies older missing inputs.
 

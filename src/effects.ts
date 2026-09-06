@@ -35,7 +35,7 @@ export class Effects {
     const audio=this.audio;
     let power=0;
     if(this.settings().sound&&audio?.state==='running'&&frame[1]<0){
-      for(let p=0;p<2;p++){const o=16+p*16;if((buttons[p]&1)&&frame[o+6]>0&&frame[o+7]>0)power+=p===localSlot?.7:.25;}
+      for(let p=0;p<2;p++){const o=16+p*16;if(((buttons[p]&1)||frame[o+13]>0)&&frame[o+6]>0&&frame[o+7]>0)power+=(p===localSlot?.7:.25)*(frame[o+13]>0?1.5:1);}
     }
     if(!power||!audio){this.stopThrust();return;}
     if(!this.engine){

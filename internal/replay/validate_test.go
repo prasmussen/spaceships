@@ -47,7 +47,7 @@ func TestBrowserFormatAgainstWazero(t *testing.T) {
 	}
 	for name, mutate := range map[string]func(*Recording){
 		"identity":         func(r *Recording) { r.Identity.Map = "wrong" },
-		"input":            func(r *Recording) { r.Inputs[0] = []int{16, 0} },
+		"input":            func(r *Recording) { r.Inputs[0] = []int{32, 0} },
 		"pair length":      func(r *Recording) { r.Inputs[0] = []int{0} },
 		"initial":          func(r *Recording) { r.Initial[0] ^= 1 },
 		"checkpoint hash":  func(r *Recording) { r.Checkpoints[0].Hash = "1" },

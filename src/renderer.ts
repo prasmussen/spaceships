@@ -82,7 +82,7 @@ async function createRenderer(canvas:HTMLCanvasElement,effects:Effects,get:Frame
         camera[0]+=(x+(reducedMotion?0:Math.max(-160,Math.min(160,motion.vx*12)))-camera[0])*damp;
         camera[1]+=(y+(reducedMotion?0:Math.max(-160,Math.min(160,motion.vy*12)))-camera[1])*damp;
       }
-      const thrust=(buttons[p]&1)&&state[o+6]>0&&state[o+7]>0?1:0;
+      const thrust=state[o+6]>0&&state[o+7]>0?(state[o+13]>0?2:(buttons[p]&1)?1:0):0;
       if(snap||reducedMotion||state[o+7]<=0)thrustPower[p]=thrust;
       else thrustPower[p]+=(thrust-thrustPower[p])*(1-Math.exp(-dt*24));
       shipData.set([x,y,motion.angle,state[o+7]>0?1:0,thrustPower[p],state[o+12]>0?1:0,0,0],p*8);

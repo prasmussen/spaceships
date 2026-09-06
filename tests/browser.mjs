@@ -70,7 +70,7 @@ try {
   await page.locator('#local-menu summary').click();
   await page.getByRole('button',{name:'Controls',exact:true}).click();
   assert.equal(await page.getByLabel('Sound effects',{exact:true}).isChecked(),true);
-  assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('cavern-controls'))),['KeyW','KeyA','KeyD','Space']);
+  assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('cavern-controls-v2'))),['KeyW','KeyA','KeyD','Space','ShiftLeft']);
   assert.equal(await page.locator('#controls-panel fieldset').count(),1);
   assert.equal(await page.getByRole('button',{name:'Restart or rematch',exact:true}).count(),0);
   await page.getByRole('button',{name:'Thrust',exact:true}).click();

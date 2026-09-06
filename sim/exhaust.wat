@@ -3,6 +3,7 @@
   (func $exhaust_force (param $p i32) (param $target i32) (param $buttons i32)
     (local $dx i32) (local $dy i32) (local $sin i32) (local $cos i32)
     (local $lateral i32) (local $distance i32) (local $side i32) (local $width i32) (local $force i32) (local $push i32)
+    (local.set $buttons (call $thrust_buttons (local.get $p) (local.get $buttons)))
     (if (i32.or (i32.eqz (i32.and (local.get $buttons) (i32.const 1)))
       (i32.or (i32.eqz (i32.load offset=24 (local.get $p)))
         (i32.or (i32.eqz (i32.load offset=28 (local.get $p)))
@@ -26,7 +27,7 @@
     (if (i32.load (i32.const 4104)) (then
       (if (i32.le_s (call $terrain_toi (i32.load (local.get $p)) (i32.load offset=4 (local.get $p))
         (local.get $dx) (local.get $dy) (i32.const 0)) (i32.const 65536)) (then (return)))))
-    (local.set $force (call $mul (i32.const @exhaustForcePerSubstep@)
+    (local.set $force (call $mul (if (result i32) (i32.load offset=52 (local.get $p)) (then (i32.const @boostExhaustForcePerSubstep@)) (else (i32.const @exhaustForcePerSubstep@)))
       (i32.div_s (i32.sub (i32.const 4194304) (local.get $distance)) (i32.const 64))))
     (local.set $force (i32.wrap_i64 (i64.div_s
       (i64.mul (i64.extend_i32_s (local.get $force)) (i64.extend_i32_s (i32.sub (local.get $width) (local.get $side))))

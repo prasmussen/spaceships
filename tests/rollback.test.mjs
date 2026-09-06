@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {Engine} from '../src/engine.ts';
 import {Rollback,ProtocolError} from '../src/rollback.ts';
 const wasm=await readFile('public/simulation.wasm');
-const buttons=(p,t)=>((t*7+(t>>(p?3:5)))&15);
+const buttons=(p,t)=>((t*7+(t>>(p?3:5)))&31);
 for(const lag of [0,3,6])for(const loss of [0,.2])test(`rollback converges: ${lag*1000/30} ms RTT, ${loss*100}% loss, jitter/reordering/duplicates and burst outage`,async()=>{
   const peers=[new Rollback(await Engine.create(wasm),0),new Rollback(await Engine.create(wasm),1)];
   let seed=1723,queue=[];
@@ -34,4 +34,4 @@ for(const lag of [0,3,6])for(const loss of [0,.2])test(`rollback converges: ${la
   for(const peer of peers){assert.equal(peer.hashAt(target-1),reference.hash());assert.ok(peer.stalls>0);assert.ok(peer.maxDepth<=12);assert.equal(peer.confirmedInputs().length,target);}
 });
 test('conflicting/foreign input and speculative hash requests are protocol errors',async()=>{const peer=new Rollback(await Engine.create(wasm),0);assert.throws(()=>peer.receive(0,2,1),ProtocolError);peer.receive(1,2,1);peer.receive(1,2,1);assert.throws(()=>peer.receive(1,2,2),ProtocolError);assert.throws(()=>peer.receive(1,500,0),ProtocolError);assert.throws(()=>peer.hashAt(0),ProtocolError);peer.advance(1);assert.equal(typeof peer.hashAt(0),'string');});
-test('outage stalls both command generation and simulation; resume repairs prediction',async()=>{const peer=new Rollback(await Engine.create(wasm),0);for(let t=0;t<100;t++)peer.advance(t&15);assert.equal(peer.tick,14);const count=peer.input[0].size;for(let t=0;t<100;t++)peer.advance(0);assert.equal(peer.input[0].size,count);for(let t=2;t<16;t++)peer.receive(1,t,1);peer.acknowledge(15);assert.ok(peer.advance(0));});
+test('outage stalls both command generation and simulation; resume repairs prediction',async()=>{const peer=new Rollback(await Engine.create(wasm),0);for(let t=0;t<100;t++)peer.advance(t&31);assert.equal(peer.tick,14);const count=peer.input[0].size;for(let t=0;t<100;t++)peer.advance(0);assert.equal(peer.input[0].size,count);for(let t=2;t<16;t++)peer.receive(1,t,1);peer.acknowledge(15);assert.ok(peer.advance(0));});

@@ -22,5 +22,10 @@
   "muzzleSpeed": 786432,
   "projectileLifetime": 120,
   "weaponCooldown": 8,
-  "spawnProtection": 90
+  "spawnProtection": 90,
+  "boostThrustPerSubstep": 21600,
+  "boostExhaustForcePerSubstep": 21600,
+  "boostDuration": 18,
+  "boostCooldown": 300,
+  "boostFuelCost": 120
 }
