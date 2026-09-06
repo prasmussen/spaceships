@@ -7,6 +7,7 @@
   ;; EVENTS
   ;; DEBRIS
   ;; DEBRIS_DATA
+  ;; EXHAUST
   ;; COMBAT
   ;; COLLISION
   ;; LANDING
@@ -41,9 +42,21 @@
       (call $spawn (i32.const 4160)) (call $spawn (i32.const 4224))))
     (i32.const 1))
   (func $flight (param $p i32) (param $buttons i32)
-    (local $spin i32) (local $angle i32) (local $vx i32) (local $vy i32) (local $fuel i32)
+    (local $spin i32) (local $angle i32) (local $vx i32) (local $vy i32) (local $fuel i32) (local $push i32) (local $pad i32)
     (if (i32.or (i32.eqz (i32.load offset=28 (local.get $p)))
       (i32.load (i32.add (i32.const 40008) (i32.mul (i32.div_u (i32.sub (local.get $p) (i32.const 4160)) (i32.const 64)) (i32.const 4))))) (then (return)))
+    (if (i32.load offset=32 (local.get $p)) (then
+      (local.set $push (i32.load (i32.add (i32.const 40120) (i32.div_u (i32.sub (local.get $p) (i32.const 4160)) (i32.const 16)))))
+      ;; Sliding carries momentum after the exhaust passes, with pad friction.
+      (local.set $push (call $clamp (i32.add (local.get $push) (i32.load offset=8 (local.get $p))) (i32.const 98304)))
+      (local.set $push (call $mul (local.get $push) (i32.const 63488)))
+      (i32.store offset=8 (local.get $p) (local.get $push))
+      (if (local.get $push) (then
+        (call $move (local.get $p) (i32.div_s (local.get $push) (i32.const 2)) (i32.const 0))
+        (local.set $pad (i32.add (i32.const 32784) (i32.mul (i32.div_u (i32.sub (local.get $p) (i32.const 4160)) (i32.const 64)) (i32.const 12))))
+        (if (i32.gt_s (i32.add (call $abs (i32.sub (i32.load (local.get $p)) (i32.load (local.get $pad)))) (i32.const 1048576)) (i32.load offset=8 (local.get $pad))) (then
+          (i32.store offset=32 (local.get $p) (i32.const 0))
+          (i32.store offset=8 (local.get $p) (local.get $push))))))))
     (if (i32.load offset=32 (local.get $p)) (then
       (if (i32.and (i32.and (local.get $buttons) (i32.const 1)) (i32.gt_s (i32.load offset=24 (local.get $p)) (i32.const 0)))
         (then (i32.store offset=32 (local.get $p) (i32.const 0)))
@@ -98,6 +111,9 @@
       (call $pre_tick (i32.const 4160)) (call $pre_tick (i32.const 4224))
       (call $fire (i32.const 4160) (i32.load8_u (local.get $input)))
       (call $fire (i32.const 4224) (i32.load8_u offset=1 (local.get $input)))
+      (memory.fill (i32.const 40120) (i32.const 0) (i32.const 8))
+      (call $exhaust_force (i32.const 4160) (i32.const 4224) (i32.load8_u (local.get $input)))
+      (call $exhaust_force (i32.const 4224) (i32.const 4160) (i32.load8_u offset=1 (local.get $input)))
       (call $capture_positions)
       (call $flight (i32.const 4160) (i32.load8_u (local.get $input)))
       (call $flight (i32.const 4224) (i32.load8_u offset=1 (local.get $input)))
@@ -106,6 +122,9 @@
       (call $ship_contact)
       (call $debris_step)
       (call $projectiles)
+      (memory.fill (i32.const 40120) (i32.const 0) (i32.const 8))
+      (call $exhaust_force (i32.const 4160) (i32.const 4224) (i32.load8_u (local.get $input)))
+      (call $exhaust_force (i32.const 4224) (i32.const 4160) (i32.load8_u offset=1 (local.get $input)))
       (call $capture_positions)
       (call $flight (i32.const 4160) (i32.load8_u (local.get $input)))
       (call $flight (i32.const 4224) (i32.load8_u offset=1 (local.get $input)))
@@ -141,7 +160,7 @@
       (if (i32.gt_u (i32.load offset=36 (local.get $p)) (i32.const @weaponCooldown@)) (then (return (i32.const 0))))
       (if (i32.ne (i32.eqz (i32.load offset=28 (local.get $p))) (i32.gt_u (i32.load offset=40 (local.get $p)) (i32.const 0))) (then (return (i32.const 0))))
       (if (i32.load offset=32 (local.get $p)) (then
-        (if (i32.or (i32.eqz (i32.load offset=28 (local.get $p))) (i32.or (i32.load offset=8 (local.get $p)) (i32.or (i32.load offset=12 (local.get $p)) (i32.load offset=20 (local.get $p))))) (then (return (i32.const 0))))))
+        (if (i32.or (i32.eqz (i32.load offset=28 (local.get $p))) (i32.or (i32.gt_u (call $abs (i32.load offset=8 (local.get $p))) (i32.const 98304)) (i32.or (i32.load offset=12 (local.get $p)) (i32.load offset=20 (local.get $p))))) (then (return (i32.const 0))))))
       (if (i32.and (i32.eqz (i32.load (i32.const 4104))) (i32.load offset=32 (local.get $p))) (then (return (i32.const 0))))
       (if (i32.load (i32.const 4104)) (then
         (if (i32.or (i32.gt_u (i32.load (local.get $p)) (i32.const 209715200)) (i32.gt_u (i32.load offset=4 (local.get $p)) (i32.const 131072000))) (then (return (i32.const 0))))

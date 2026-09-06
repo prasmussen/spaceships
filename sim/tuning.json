@@ -4,6 +4,8 @@
   "substeps": 2,
   "gravityPerSubstep": 1800,
   "thrustPerSubstep": 5400,
+  "exhaustForcePerSubstep": 5400,
+  "padExhaustResponse": 12,
   "angularAccelerationPerSubstep": 2,
   "angularBrakingPerSubstep": 8,
   "maxAngularSpeed": 72,
