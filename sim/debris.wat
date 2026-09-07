@@ -1,21 +1,3 @@
-  (func $debris_ship (param $p i32) (param $ship i32) (param $radius i32)
-    (local $nx i32) (local $ny i32) (local $length i32) (local $dot i64) (local $scale i32)
-    (local.set $nx (i32.sub (i32.load (local.get $p)) (i32.load (local.get $ship))))
-    (local.set $ny (i32.sub (i32.load offset=4 (local.get $p)) (i32.load offset=4 (local.get $ship))))
-    (if (i32.eqz (i32.or (local.get $nx) (local.get $ny))) (then (local.set $nx (i32.const 65536))))
-    (local.set $dot (i64.add
-      (i64.mul (i64.extend_i32_s (local.get $nx)) (i64.extend_i32_s (i32.sub (i32.load offset=8 (local.get $p)) (i32.load offset=8 (local.get $ship)))))
-      (i64.mul (i64.extend_i32_s (local.get $ny)) (i64.extend_i32_s (i32.sub (i32.load offset=12 (local.get $p)) (i32.load offset=12 (local.get $ship)))))))
-    (if (i64.lt_s (local.get $dot) (i64.const 0)) (then
-      (local.set $scale (i32.wrap_i64 (i64.div_s (i64.mul (local.get $dot) (i64.const 98304)) (call $dist2 (local.get $nx) (local.get $ny)))))
-      (i32.store offset=8 (local.get $p) (call $clamp (i32.sub (i32.load offset=8 (local.get $p)) (call $mul (local.get $nx) (local.get $scale))) (i32.const 4980736)))
-      (i32.store offset=12 (local.get $p) (call $clamp (i32.sub (i32.load offset=12 (local.get $p)) (call $mul (local.get $ny) (local.get $scale))) (i32.const 4980736)))))
-    (local.set $length (call $max (call $abs (local.get $nx)) (call $abs (local.get $ny))))
-    (local.set $radius (i32.add (local.get $radius) (i32.const 1048704)))
-    (i32.store (local.get $p) (i32.add (i32.load (local.get $ship)) (i32.wrap_i64 (i64.div_s
-      (i64.mul (i64.extend_i32_s (local.get $nx)) (i64.extend_i32_s (local.get $radius))) (i64.extend_i32_s (local.get $length))))))
-    (i32.store offset=4 (local.get $p) (i32.add (i32.load offset=4 (local.get $ship)) (i32.wrap_i64 (i64.div_s
-      (i64.mul (i64.extend_i32_s (local.get $ny)) (i64.extend_i32_s (local.get $radius))) (i64.extend_i32_s (local.get $length)))))))
   ;; Resolve against expanded solid faces, including chips born inside a wall.
   (func $debris_wall (param $p i32) (param $r i32)
     (local $rect i32) (local $end i32) (local $x i32) (local $y i32)
@@ -110,7 +92,15 @@
         (if (i32.and (i32.le_s (local.get $hit) (i32.const 65536)) (i32.lt_s (local.get $hit) (local.get $t))) (then
           (local.set $t (local.get $hit))
           (local.set $shiphit (i32.const 1))
-          ;; At most 2% speed loss per ship per tick, no hull damage.
+          ;; Each individual piece damages hull once; accumulate alongside shots
+          ;; so deaths and kill credit resolve after both substeps.
+          (if (i32.eqz (i32.and (local.get $meta) (i32.const 131072))) (then
+            (i32.store (i32.add (i32.const 40000) (i32.mul (local.get $player) (i32.const 4)))
+              (i32.add (i32.load (i32.add (i32.const 40000) (i32.mul (local.get $player) (i32.const 4)))) (i32.const 25)))
+            (if (i32.and (i32.eq (i32.load (i32.add (i32.const 40160) (i32.mul (local.get $player) (i32.const 4)))) (i32.const -1))
+              (i32.ge_s (i32.load (i32.add (i32.const 40000) (i32.mul (local.get $player) (i32.const 4)))) (i32.load offset=28 (local.get $target)))) (then
+              (i32.store (i32.add (i32.const 40160) (i32.mul (local.get $player) (i32.const 4))) (i32.load offset=20 (local.get $slot)))))))
+          ;; At most 2% speed loss per ship per tick, regardless of piece count.
           (if (i32.and (i32.eqz (i32.and (local.get $meta) (i32.const 131072))) (i32.eqz (i32.and (i32.load (i32.const 40132)) (i32.shl (i32.const 1) (local.get $player))))) (then
             (i32.store (i32.const 40132) (i32.or (i32.load (i32.const 40132)) (i32.shl (i32.const 1) (local.get $player))))
             (i32.store offset=8 (local.get $target) (call $mul (i32.load offset=8 (local.get $target)) (i32.const 64225)))
@@ -120,10 +110,16 @@
         (local.set $t (call $min (local.get $t) (i32.const 65536)))
         (i32.store (local.get $slot) (call $clamp (i32.add (local.get $x) (call $mul (local.get $dx) (local.get $t))) (i32.const 1073741824)))
         (i32.store offset=4 (local.get $slot) (call $clamp (i32.add (local.get $y) (call $mul (local.get $dy) (local.get $t))) (i32.const 1073741824)))
-        (if (local.get $shiphit) (then (call $debris_ship (local.get $slot) (local.get $target) (local.get $radius))))
+        (if (local.get $shiphit) (then
+          (call $event (i32.const 2) (i32.add (i32.load offset=24 (local.get $slot)) (i32.const 4))
+            (i32.load (local.get $slot)) (i32.load offset=4 (local.get $slot))
+            (i32.load offset=20 (local.get $slot)) (local.get $player))
+          (memory.fill (local.get $slot) (i32.const 0) (i32.const 32)))
+        (else
         (call $debris_wall (local.get $slot) (local.get $radius))
         (local.set $angle (i32.and (i32.add (i32.shr_u (local.get $meta) (i32.const 5)) (i32.load offset=20 (local.get $table))) (i32.const 4095)))
         (i32.store offset=28 (local.get $slot) (i32.or (i32.and (local.get $meta) (i32.const -131041)) (i32.shl (local.get $angle) (i32.const 5))))
+        ))
       ))
       (local.set $slot (i32.add (local.get $slot) (i32.const 32)))
       (br_if $pool (i32.lt_u (local.get $slot) (i32.const 12608)))))

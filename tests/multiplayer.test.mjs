@@ -63,11 +63,11 @@ test('multiple same-tick attackers give one kill to the shot that reaches lethal
   for(let i=0;i<4;i++)pool.set([0,0,0,0,10,[1,2,3,1][i],i+1,0],i*8);st[3]=4;
   engine.step([0,0,0,0]);assert.equal(st[23],0);assert.equal(st[43],0);assert.equal(st[59],0);assert.equal(st[75],1);engine.load(engine.save());
 });
-test('higher-slot exhaust and debris affect opponents without hull damage',async()=>{
+test('higher-slot exhaust pushes opponents and debris damages their hull',async()=>{
   const {engine,st,pool}=await game();for(let id=0;id<4;id++)ship(st,id,1000+id*300,1000);
   ship(st,2,0,0);ship(st,3,0,50);engine.step([0,0,1,0]);assert.ok(st[67]>3600);assert.equal(st[71],600);
   ship(st,2,0,0);ship(st,3,50,0);st[66]=-Q;pool.set([25*Q,0,40*Q,0,186,2,1,0x10000000]);st[3]=1;
-  engine.step([0,0,0,0]);assert.equal(st[71],600);assert.ok(pool[2]<0,'fragment bounces from slot 3');
+  engine.step([0,0,0,0]);assert.equal(st[71],575);assert.ok(pool.subarray(0,8).every(v=>v===0),'fragment is consumed by slot 3');
 });
 test('player count, unused slots, owners and input-vector length are validated',async()=>{
   const {engine,st}=await game(3);const hash=engine.hash();

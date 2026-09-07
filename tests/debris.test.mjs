@@ -5,18 +5,44 @@ const binary=await readFile('public/simulation.wasm'),Q=65536;
 async function create(map=0){const {instance}=await WebAssembly.instantiate(binary);const s=instance.exports;s.init(1024,map,0,2);return {s,st:new Int32Array(s.memory.buffer,4096,2128),pool:new Int32Array(s.memory.buffer,4416,2048)};}
 function step(s,n=1){new Uint8Array(s.memory.buffer,2048,2).fill(0);for(let i=0;i<n;i++)s.step(2048,1);}
 function chip(pool,{x=0,y=0,vx=0,vy=0,life=186,owner=0,id=1,shape=0}={}){pool.set([x*Q,y*Q,vx*Q,vy*Q,life,owner,id,0x10000000|shape]);}
-test('debris hits a moving ship, rebounds and reduces speed slightly without damaging hull',async()=>{
+test('debris hits a moving ship, is consumed and emits an impact spark event',async()=>{
   const {s,st,pool}=await create();st[32]=40*Q;st[33]=0;st[34]=-10*Q;
   chip(pool,{vx:64});st[3]=1;
   step(s);
   assert.ok(Math.abs(st[34])/Q>9.7&&Math.abs(st[34])/Q<10);
-  assert.equal(st[39],600);assert.ok(pool[2]<0);assert.ok(pool[7]&131072);
+  assert.equal(st[39],575);assert.ok(pool.subarray(0,8).every(v=>v===0));
+  const events=new Int32Array(s.memory.buffer,131072,9);
+  assert.equal(events[0],1);assert.equal(events[2],5);assert.equal(events[4],2);
+  assert.equal(events[7],0);assert.equal(events[8],1);
+  assert.ok(events[5]>0&&events[5]<40*Q);
   assert.equal(st[43],0);
 });
-test('a dense cloud applies at most one slowdown per tick',async()=>{
+test('a dense cloud sums damage from every fragment but applies at most one slowdown per tick',async()=>{
   const {s,st,pool}=await create();st[32]=40*Q;st[33]=0;st[34]=-10*Q;
   for(let i=0;i<16;i++)chip(pool.subarray(i*8),{vx:64,id:i+1});st[3]=16;
-  step(s);assert.ok(Math.abs(st[34])/Q>9.75&&Math.abs(st[34])/Q<9.77);assert.equal(st[39],600);
+  step(s);assert.ok(Math.abs(st[34])/Q>9.75&&Math.abs(st[34])/Q<9.77);assert.equal(st[39],200);
+});
+test('consumed debris cannot damage hull again on subsequent ticks',async()=>{
+  const {s,st,pool}=await create();st[32]=40*Q;st[33]=0;st[34]=-10*Q;
+  chip(pool,{vx:64});st[3]=1;step(s);assert.equal(st[39],575);
+  assert.ok(pool.subarray(0,8).every(v=>v===0));
+  step(s,10);assert.equal(st[39],575);
+});
+test('lethal debris damage destroys the ship and credits the fragment owner once',async()=>{
+  const {s,st,pool}=await create();st[32]=40*Q;st[33]=0;st[34]=-10*Q;st[39]=50;
+  for(let i=0;i<3;i++)chip(pool.subarray(i*8),{vx:64,id:i+1});st[3]=3;
+  step(s);assert.equal(st[39],0);assert.equal(st[42],120);assert.equal(st[27],1);
+  step(s);assert.equal(st[27],1);
+});
+test('debris and shots add their damage in the same tick',async()=>{
+  const {s,st,pool}=await create();st[32]=40*Q;st[33]=0;st[34]=-10*Q;
+  chip(pool,{vx:64});pool.set([0,0,64*Q,0,120,0,2,0],8);st[3]=2;
+  step(s);assert.equal(st[39],375);
+});
+test('debris does not damage its own ship',async()=>{
+  const {s,st,pool}=await create();st[32]=40*Q;st[33]=0;st[34]=-10*Q;
+  chip(pool,{vx:64,owner:1});st[3]=1;step(s);
+  assert.equal(st[39],600);assert.equal(pool[7]&131072,0);
 });
 test('near misses and dead ships do not take debris impacts',async()=>{
   for(const dead of [false,true]){
