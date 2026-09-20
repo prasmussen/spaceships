@@ -2,6 +2,12 @@
 
 A work-in-progress implementation of `plan.txt`: online spaceship deathmatch, flight/landing practice, automatic online matchmaking, and developer rollback/replay tests. Gameplay is handwritten WAT compiled to WASM. TypeScript workers run the simulation; WebGPU renders the cave.
 
+## Demo
+
+https://github.com/user-attachments/assets/7a81910a-f02f-4406-9d19-a4cb2c32c847
+
+
+
 Requires a recent Node.js (22.18+ for the TypeScript test modules) and a desktop WebGPU browser.
 
 ```sh
