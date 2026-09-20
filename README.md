@@ -1,6 +1,6 @@
 # Spaceships
 
-A work-in-progress implementation of `plan.txt`: online spaceship deathmatch, flight/landing practice, automatic online matchmaking, and developer rollback/replay tests. Gameplay is handwritten WAT compiled to WASM. TypeScript workers run the simulation; WebGPU renders the cave.
+A work-in-progress online spaceship deathmatch, flight/landing practice, automatic online matchmaking, and developer rollback/replay tests. Gameplay is handwritten WAT compiled to WASM. TypeScript workers run the simulation; WebGPU renders the cave.
 
 ## Demo
 
